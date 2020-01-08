@@ -1,0 +1,14 @@
+*.o
+*.d
+*~
+*.orig
+*.pyc
+/chirc
+.cache
+results
+report.html
+tests.json
+alltests
+build/
+cmake-build*
+.idea
