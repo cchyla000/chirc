@@ -139,6 +139,9 @@ int main(int argc, char *argv[])
 
     char *msg = ":bar.example.com 001 user1 :Welcome to the Internet Relay Network user1!user1@foo.example.com\r\n";
 
+    char buffer[100 + 1]; // +1 for '\0'
+    int nbytes;
+
     memset(&server_addr, 0, sizeof(server_addr));
     server_addr.sin_family = AF_INET;
     server_addr.sin_port = htons(atoi(port));
@@ -152,6 +155,8 @@ int main(int argc, char *argv[])
     while(1)
     {
         client_socket = accept(server_socket, (struct sockaddr *) &client_addr, &sin_size);
+        
+        recv(); 
         send(client_socket, msg, strlen(msg), 0);
     }
 
