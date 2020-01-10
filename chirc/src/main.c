@@ -229,7 +229,7 @@ int main(int argc, char *argv[])
 
           /* if the characters "\r\n" are not in the buffer,
              increment the pointer buf by nbytes: */         
-          if (strstr(buffer, "\r\n") == NULL)
+          if (strstr(buf, "\r\n") == NULL)
           {
             buf += nbytes;
           } 
@@ -246,13 +246,15 @@ int main(int argc, char *argv[])
               /* Clear previous contents of nick buffer in case
                  a previous nickname was set there */
               memset(nick, '\0', BUFFER_SIZE + 1);
-              strcpy (nick, token);
+              strcpy (nick,token);
               have_nick = 1;
             }
             else if (strcmp(token, "USER") == 0)
             {
-              token = strtok_r(rest, " \r", &rest);
-              
+              token = strtok_r(rest, " ", &rest);
+              memset(user, '\0', BUFFER_SIZE + 1);
+              strcpy(user,token); 
+              have_user = 1;              
             }
             // else do nothing, not valid message
  
