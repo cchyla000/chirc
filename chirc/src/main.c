@@ -147,6 +147,9 @@ int main(int argc, char *argv[])
     char *token;
     char *rest;
     char *msg = ":bar.example.com 001 user1 :Welcome to the Internet Relay Network user1!user1@foo.example.com\r\n";
+    char *msgFirstPart = ":bar.example.com 001 ";
+    char *msgSecondPart = " :Welcome to the Internet Relay Network ";
+    char *msgThirdPart = "@foo.example.com\r\n";
 
     memset(&hints, 0, sizeof(hints));
     hints.ai_family = AF_INET;
@@ -179,14 +182,14 @@ int main(int argc, char *argv[])
           chilog(INFO, "Socket setsockopt() failed");
           close(server_socket);
           continue;
-      } 
+      }
 
       if (bind(server_socket, p->ai_addr, p->ai_addrlen) == -1)
       {
           chilog(INFO, "Socket bind() failed");
           close(server_socket);
           continue;
-      } 
+      }
 
       if (listen(server_socket, 5) == -1)
       {
@@ -194,7 +197,7 @@ int main(int argc, char *argv[])
           close(server_socket);
           continue;
       }
- 
+
       break;
 
     }
@@ -212,9 +215,9 @@ int main(int argc, char *argv[])
 
         client_socket = accept(server_socket, (struct sockaddr *) &client_addr, &sin_size);
 
-        bytes_left = BUFFER_SIZE;               
+        bytes_left = BUFFER_SIZE;
 
-        while (!have_nick || !have_user)
+        while ((!have_nick) || (!have_user))
         {
 
           nbytes = recv(client_socket, buf, bytes_left, 0);
@@ -228,14 +231,14 @@ int main(int argc, char *argv[])
           }
 
           /* if the characters "\r\n" are not in the buffer,
-             increment the pointer buf by nbytes: */         
+             increment the pointer buf by nbytes: */
           if (strstr(buf, "\r\n") == NULL)
           {
             buf += nbytes;
-          } 
-          else 
+          }
+          else
           {
-            /* parse the buffer, put contents in nick[], user[], 
+            /* parse the buffer, put contents in nick[], user[],
                or neither, reset buffer[], and set buf to point
                to beginning of buffer again */
             rest = buffer;
@@ -253,22 +256,29 @@ int main(int argc, char *argv[])
             {
               token = strtok_r(rest, " ", &rest);
               memset(user, '\0', BUFFER_SIZE + 1);
-              strcpy(user,token); 
-              have_user = 1;              
+              strcpy(user,token);
+              have_user = 1;
             }
             // else do nothing, not valid message
- 
+
             memset (buffer, '\0', BUFFER_SIZE + 1);
             buf = buffer;
             bytes_left = BUFFER_SIZE;
           }
         }
- 
-        send(client_socket, msg, strlen(msg), 0);
+        char actualMsg[BUFFER_SIZE + 1];
+        strcpy(actualMsg,msgFirstPart);
+        strcat(actualMsg,nick);
+        strcat(actualMsg,msgSecondPart);
+        strcat(actualMsg,nick);
+        strcat(actualMsg,"!");
+        strcat(actualMsg,user);
+        strcat(actualMsg,msgThirdPart);
+        chilog(TRACE, actualMsg);
+        send(client_socket, actualMsg, strlen(actualMsg), 0);
     }
 
     close(server_socket);
 
     return 0;
 }
-
