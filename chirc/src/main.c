@@ -50,29 +50,7 @@
 #include <netdb.h>
 #include "log.h"
 
-#define BUFFER_SIZE 200;
-
-void parse (char *msg) 
-{
-    char* token = strtok(msg, " ");
-    
-    if (strcmp(token, "NICK") == 0)
-    {
-      chilog(INFO, "Matched NICK");
-
-    }
-    else if (strcmp(token, "USER") == 0)
-    {
-      // USER command must have "\r\n" at the end
-      // LAST USER command sent is used 
-      chilog(INFO, "Matched USER");
-
-    }
-    else
-    {
-
-    }
-}
+#define BUFFER_SIZE 200
 
 int main(int argc, char *argv[])
 {
