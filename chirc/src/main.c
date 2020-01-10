@@ -133,30 +133,74 @@ int main(int argc, char *argv[])
 
     int server_socket;
     int client_socket;
-    struct sockaddr_in server_addr, client_addr;
+    struct addrinfo hints, *res, *p;
+    struct sockaddr_in *client_addr;
     int yes = 1;
     socklen_t sin_size = sizeof(struct sockaddr_in);
 
     char *msg = ":bar.example.com 001 user1 :Welcome to the Internet Relay Network user1!user1@foo.example.com\r\n";
 
+    memset(&hints, 0, sizeof(hints));
+    hints.ai_family = AF_INET;
+    hints.ai_socktype = SOCK_STREAM;
+    hints.ai_flags = AI_PASSIVE; // return my address, so I can bind() to it
+
     char buffer[100 + 1]; // +1 for '\0'
     int nbytes;
+    if (getaddrinfo (NULL, port, &hints, &res) != 0)
+    {
+        chilog (INFO, "getaddrinfo() failed");
+        exit (-1);
+    }
 
-    memset(&server_addr, 0, sizeof(server_addr));
-    server_addr.sin_family = AF_INET;
-    server_addr.sin_port = htons(atoi(port));
-    server_addr.sin_addr.s_addr = INADDR_ANY;
+    for (p = res; p != NULL; p = p->ai_next)
+    {
+      if ((server_socket = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP)) == -1)
+      {
+          chilog (INFO, "Could not open socket");
+          continue;
+      }
 
-    server_socket = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP);
-    setsockopt(server_socket, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int));
-    bind(server_socket, (struct sockaddr *) &server_addr, sizeof(server_addr));
-    listen(server_socket, 5);
+      if (setsockopt(server_socket, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int)) == -1)
+      {
+          chilog (INFO, "Socket setsockopt() failed");
+          close(server_socket);
+          continue;
+      } 
+
+      if (bind(server_socket, p->ai_addr, p->ai_addrlen) == -1)
+      {
+          chilog (INFO, "Socket bind() failed");
+          close(server_socket);
+          continue;
+      } 
+
+      if (listen(server_socket, 5) == -1)
+      {
+          chilog (INFO, "Socket listen() failed");
+          close(server_socket);
+          continue;
+      }
+ 
+      break;
+
+    }
+
+    freeaddrinfo(res);
+
+    if (p == NULL)
+    {
+        chilog (INFO, "Could not find a socket to bind to");
+        exit (-1);
+    }
 
     while(1)
     {
+//        client_addr = calloc(1, sin_size);
+
         client_socket = accept(server_socket, (struct sockaddr *) &client_addr, &sin_size);
         
-        recv(); 
+//        recv(); 
         send(client_socket, msg, strlen(msg), 0);
     }
 
