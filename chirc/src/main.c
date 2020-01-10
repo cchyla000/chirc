@@ -50,6 +50,29 @@
 #include <netdb.h>
 #include "log.h"
 
+#define BUFFER_SIZE 200;
+
+void parse (char *msg) 
+{
+    char* token = strtok(msg, " ");
+    
+    if (strcmp(token, "NICK") == 0)
+    {
+      chilog(INFO, "Matched NICK");
+
+    }
+    else if (strcmp(token, "USER") == 0)
+    {
+      // USER command must have "\r\n" at the end
+      // LAST USER command sent is used 
+      chilog(INFO, "Matched USER");
+
+    }
+    else
+    {
+
+    }
+}
 
 int main(int argc, char *argv[])
 {
@@ -138,6 +161,13 @@ int main(int argc, char *argv[])
     int yes = 1;
     socklen_t sin_size = sizeof(struct sockaddr_in);
 
+    int have_user = 0;
+    int have_nick = 0;
+    char nick[BUFFER_SIZE + 1];
+    char user[BUFFER_SIZE + 1];
+
+    char *token;
+    char *rest;
     char *msg = ":bar.example.com 001 user1 :Welcome to the Internet Relay Network user1!user1@foo.example.com\r\n";
 
     memset(&hints, 0, sizeof(hints));
@@ -145,11 +175,16 @@ int main(int argc, char *argv[])
     hints.ai_socktype = SOCK_STREAM;
     hints.ai_flags = AI_PASSIVE; // return my address, so I can bind() to it
 
-    char buffer[100 + 1]; // +1 for '\0'
+    char buffer[BUFFER_SIZE + 1]; // +1 for '\0'
+    char* buf;
+    buf = buffer;
+
     int nbytes;
+    int bytes_left;
+
     if (getaddrinfo (NULL, port, &hints, &res) != 0)
     {
-        chilog (INFO, "getaddrinfo() failed");
+        chilog(INFO, "getaddrinfo() failed");
         exit (-1);
     }
 
@@ -157,27 +192,27 @@ int main(int argc, char *argv[])
     {
       if ((server_socket = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP)) == -1)
       {
-          chilog (INFO, "Could not open socket");
+          chilog(INFO, "Could not open socket");
           continue;
       }
 
       if (setsockopt(server_socket, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int)) == -1)
       {
-          chilog (INFO, "Socket setsockopt() failed");
+          chilog(INFO, "Socket setsockopt() failed");
           close(server_socket);
           continue;
       } 
 
       if (bind(server_socket, p->ai_addr, p->ai_addrlen) == -1)
       {
-          chilog (INFO, "Socket bind() failed");
+          chilog(INFO, "Socket bind() failed");
           close(server_socket);
           continue;
       } 
 
       if (listen(server_socket, 5) == -1)
       {
-          chilog (INFO, "Socket listen() failed");
+          chilog(INFO, "Socket listen() failed");
           close(server_socket);
           continue;
       }
@@ -186,21 +221,69 @@ int main(int argc, char *argv[])
 
     }
 
-    freeaddrinfo(res);
+    freeaddrinfo(res); // free the linked list
 
     if (p == NULL)
     {
-        chilog (INFO, "Could not find a socket to bind to");
+        chilog(INFO, "Could not find a socket to bind to");
         exit (-1);
     }
 
     while(1)
     {
-//        client_addr = calloc(1, sin_size);
 
         client_socket = accept(server_socket, (struct sockaddr *) &client_addr, &sin_size);
-        
-//        recv(); 
+
+        bytes_left = BUFFER_SIZE;               
+
+        while (!have_nick || !have_user)
+        {
+
+          nbytes = recv(client_socket, buf, bytes_left, 0);
+          bytes_left -= nbytes;
+
+          if (nbytes == 0) // client closed the connection
+          {
+            chilog(INFO, "client closed connection");
+            close(server_socket);
+            return 0;
+          }
+
+          /* if the characters "\r\n" are not in the buffer,
+             increment the pointer buf by nbytes: */         
+          if (strstr(buffer, "\r\n") == NULL)
+          {
+            buf += nbytes;
+          } 
+          else 
+          {
+            /* parse the buffer, put contents in nick[], user[], 
+               or neither, reset buffer[], and set buf to point
+               to beginning of buffer again */
+            rest = buffer;
+            token = strtok_r(rest, " ", &rest);
+            if (strcmp(token, "NICK") == 0)
+            {
+              token = strtok_r(rest, " \r", &rest);
+              /* Clear previous contents of nick buffer in case
+                 a previous nickname was set there */
+              memset(nick, '\0', BUFFER_SIZE + 1);
+              strcpy (nick, token);
+              have_nick = 1;
+            }
+            else if (strcmp(token, "USER") == 0)
+            {
+              token = strtok_r(rest, " \r", &rest);
+              
+            }
+            // else do nothing, not valid message
+ 
+            memset (buffer, '\0', BUFFER_SIZE + 1);
+            buf = buffer;
+            bytes_left = BUFFER_SIZE;
+          }
+        }
+ 
         send(client_socket, msg, strlen(msg), 0);
     }
 
