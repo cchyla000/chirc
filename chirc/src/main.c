@@ -226,62 +226,49 @@ int main(int argc, char *argv[])
 
           nbytes = recv(client_socket, buf, bytes_left, 0);
           bytes_left -= nbytes;
-
           if (nbytes == 0) // client closed the connection
           {
-            chilog(INFO, "client closed connection");
             close(server_socket);
             return 0;
           }
+          buf += nbytes;
 
-          /* if the characters "\r\n" are not in the buffer,
-             increment the pointer buf by nbytes: */
-          if (strstr(current_msg, "\r\n") == NULL)
+          /* parse the buffer, put contents in nick[], user[],
+             or neither */
+          while (strstr(current_msg, "\r\n") != NULL)
           {
-            buf += nbytes;
-          }
-          else
-          {
-            do
+            rest = current_msg;
+            token = strtok_r(rest, " ", &rest);
+            if (strcmp(token, "NICK") == 0)
             {
-              /* parse the buffer, put contents in nick[], user[],
-                 or neither */
-
-              rest = current_msg;
-              token = strtok_r(rest, " ", &rest);
-              if (strcmp(token, "NICK") == 0)
-              {
-                token = strtok_r(rest, "\r", &rest);
-                strcpy (nick,token);
-                have_nick = 1;
-              }
-              else if (strcmp(token, "USER") == 0)
-              {
-                token = strtok_r(rest, " ", &rest);
-                strcpy(user,token);
-                have_user = 1;
-                token = strtok_r(rest, "\r", &rest);
-              }
-              else // not a valid message
-              {
-                token = strtok_r(rest, "\r", &rest);
-              } 
-
-              rest = rest + 1; // points past end of parsed message
-              if (*rest == '\0') // no next message, reset
-              {
-                memset (buffer, '\0', BUFFER_SIZE + 1);
-                buf = buffer;
-                bytes_left = BUFFER_SIZE;
-                current_msg = buffer;
-              }              
-              else // another message already started in buffer, cannot reset
-              {
-                current_msg = rest;
-              }
-
+              token = strtok_r(rest, "\r", &rest);
+              strcpy (nick,token);
+              have_nick = 1;
             }
-            while (strstr(current_msg, "\r\n") != NULL);
+            else if (strcmp(token, "USER") == 0)
+            {
+              token = strtok_r(rest, " ", &rest);
+              strcpy(user,token);
+              have_user = 1;
+              token = strtok_r(rest, "\r", &rest);
+            }
+            else // not a valid message
+            {
+              token = strtok_r(rest, "\r", &rest);
+            } 
+
+            rest = rest + 1; // points past end of parsed message
+            if (*rest == '\0') // no next message, reset
+            {
+              memset (buffer, '\0', BUFFER_SIZE + 1);
+              buf = buffer;
+              bytes_left = BUFFER_SIZE;
+              current_msg = buffer;
+            }              
+            else // another message already started in buffer, cannot reset
+            {
+              current_msg = rest;
+            }
 
           }
         }
@@ -294,7 +281,6 @@ int main(int argc, char *argv[])
         strcat(actualMsg,"!");
         strcat(actualMsg,user);
         strcat(actualMsg,msgThirdPart);
-        chilog(TRACE, actualMsg);
         send(client_socket, actualMsg, strlen(actualMsg), 0);
     }
 
