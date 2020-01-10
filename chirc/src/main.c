@@ -51,7 +51,7 @@
 #include "log.h"
 
 /* A single message has max length of 512 characters */
-#define BUFFER_SIZE 512 
+#define BUFFER_SIZE 512
 
 int main(int argc, char *argv[])
 {
@@ -151,10 +151,13 @@ int main(int argc, char *argv[])
 
     char *token;
     char *rest;
-    char *msg = ":bar.example.com 001 user1 :Welcome to the Internet Relay Network user1!user1@foo.example.com\r\n";
-    char *msgFirstPart = ":bar.example.com 001 ";
-    char *msgSecondPart = " :Welcome to the Internet Relay Network ";
-    char *msgThirdPart = "@foo.example.com\r\n";
+    /*
+    Example constructed message:
+    ":bar.example.com 001 user1 :Welcome to the Internet Relay Network user1!user1@foo.example.com\r\n"
+    */
+    char *msg_first_part = ":bar.example.com 001 ";
+    char *msg_second_part = " :Welcome to the Internet Relay Network ";
+    char *msg_third_part = "@foo.example.com\r\n";
     memset(&hints, 0, sizeof(hints));
     hints.ai_family = AF_INET;
     hints.ai_socktype = SOCK_STREAM;
@@ -214,77 +217,72 @@ int main(int argc, char *argv[])
         exit (-1);
     }
 
-    while(1)
+    while (1)
     {
-
         client_socket = accept(server_socket, (struct sockaddr *) &client_addr, &sin_size);
-
         bytes_left = BUFFER_SIZE;
 
         while ((!have_nick) || (!have_user))
         {
-
-          nbytes = recv(client_socket, buf, bytes_left, 0);
-          bytes_left -= nbytes;
-          if (nbytes == 0) // client closed the connection
-          {
-            close(server_socket);
-            return 0;
-          }
-          buf += nbytes;
-
-          /* parse the buffer, put contents in nick[], user[],
-             or neither */
-          while (strstr(current_msg, "\r\n") != NULL)
-          {
-            rest = current_msg;
-            token = strtok_r(rest, " ", &rest);
-            if (strcmp(token, "NICK") == 0)
+            nbytes = recv(client_socket, buf, bytes_left, 0);
+            bytes_left -= nbytes;
+            if (nbytes == 0) // client closed the connection
             {
-              token = strtok_r(rest, "\r", &rest);
-              strcpy (nick,token);
-              have_nick = 1;
+              close(server_socket);
+              return 0;
             }
-            else if (strcmp(token, "USER") == 0)
-            {
-              token = strtok_r(rest, " ", &rest);
-              strcpy(user,token);
-              have_user = 1;
-              token = strtok_r(rest, "\r", &rest);
-            }
-            else // not a valid message
-            {
-              token = strtok_r(rest, "\r", &rest);
-            } 
+            buf += nbytes;
 
-            rest = rest + 1; // points past end of parsed message
-            if (*rest == '\0') // no next message, reset
+            /* parse the buffer, put contents in nick[], user[],
+               or neither */
+            while (strstr(current_msg, "\r\n") != NULL)
             {
-              memset (buffer, '\0', BUFFER_SIZE + 1);
-              buf = buffer;
-              bytes_left = BUFFER_SIZE;
-              current_msg = buffer;
-            }              
-            else // another message already started in buffer, cannot reset
-            {
-              current_msg = rest;
-            }
+                rest = current_msg;
+                token = strtok_r(rest, " ", &rest);
+                if (strcmp(token, "NICK") == 0)
+                {
+                    token = strtok_r(rest, "\r", &rest);
+                    strcpy (nick, token);
+                    have_nick = 1;
+                }
+                else if (strcmp(token, "USER") == 0)
+                {
+                    token = strtok_r(rest, " ", &rest);
+                    strcpy(user, token);
+                    have_user = 1;
+                    token = strtok_r(rest, "\r", &rest);
+                }
+                else // not a valid message
+                {
+                    token = strtok_r(rest, "\r", &rest);
+                }
 
-          }
+                rest = rest + 1; // points past end of parsed message
+                if (*rest == '\0') // no next message, reset
+                {
+                    memset(buffer, '\0', BUFFER_SIZE + 1);
+                    buf = buffer;
+                    bytes_left = BUFFER_SIZE;
+                    current_msg = buffer;
+                }
+                else // another message already started in buffer, cannot reset
+                {
+                    current_msg = rest;
+                }
+            }
         }
 
-        char actualMsg[BUFFER_SIZE + 1];
-        strcpy(actualMsg,msgFirstPart);
-        strcat(actualMsg,nick);
-        strcat(actualMsg,msgSecondPart);
-        strcat(actualMsg,nick);
-        strcat(actualMsg,"!");
-        strcat(actualMsg,user);
-        strcat(actualMsg,msgThirdPart);
-        send(client_socket, actualMsg, strlen(actualMsg), 0);
+        char constructed_msg[BUFFER_SIZE + 1];
+        strcpy(constructed_msg, msg_first_part);
+        strcat(constructed_msg, nick);
+        strcat(constructed_msg, msg_second_part);
+        strcat(constructed_msg, nick);
+        strcat(constructed_msg, "!");
+        strcat(constructed_msg, user);
+        strcat(constructed_msg, msg_third_part);
+        send(client_socket, constructed_msg, strlen(constructed_msg), 0);
     }
 
     close(server_socket);
-
     return 0;
 }
