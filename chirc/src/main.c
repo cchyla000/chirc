@@ -50,7 +50,8 @@
 #include <netdb.h>
 #include "log.h"
 
-#define BUFFER_SIZE 200
+/* A single message has max length of 512 characters */
+#define BUFFER_SIZE 512 
 
 int main(int argc, char *argv[])
 {
@@ -141,8 +142,12 @@ int main(int argc, char *argv[])
 
     int have_user = 0;
     int have_nick = 0;
+    char buffer[BUFFER_SIZE + 1]; // +1 for '\0'
     char nick[BUFFER_SIZE + 1];
     char user[BUFFER_SIZE + 1];
+    memset (buffer, '\0', BUFFER_SIZE + 1);
+    memset (nick, '\0', BUFFER_SIZE + 1);
+    memset (user, '\0', BUFFER_SIZE + 1);
 
     char *token;
     char *rest;
@@ -150,13 +155,12 @@ int main(int argc, char *argv[])
     char *msgFirstPart = ":bar.example.com 001 ";
     char *msgSecondPart = " :Welcome to the Internet Relay Network ";
     char *msgThirdPart = "@foo.example.com\r\n";
-
     memset(&hints, 0, sizeof(hints));
     hints.ai_family = AF_INET;
     hints.ai_socktype = SOCK_STREAM;
     hints.ai_flags = AI_PASSIVE; // return my address, so I can bind() to it
 
-    char buffer[BUFFER_SIZE + 1]; // +1 for '\0'
+    char *current_msg = buffer;
     char* buf;
     buf = buffer;
 
@@ -232,40 +236,56 @@ int main(int argc, char *argv[])
 
           /* if the characters "\r\n" are not in the buffer,
              increment the pointer buf by nbytes: */
-          if (strstr(buf, "\r\n") == NULL)
+          if (strstr(current_msg, "\r\n") == NULL)
           {
             buf += nbytes;
           }
           else
           {
-            /* parse the buffer, put contents in nick[], user[],
-               or neither, reset buffer[], and set buf to point
-               to beginning of buffer again */
-            rest = buffer;
-            token = strtok_r(rest, " ", &rest);
-            if (strcmp(token, "NICK") == 0)
+            do
             {
-              token = strtok_r(rest, " \r", &rest);
-              /* Clear previous contents of nick buffer in case
-                 a previous nickname was set there */
-              memset(nick, '\0', BUFFER_SIZE + 1);
-              strcpy (nick,token);
-              have_nick = 1;
-            }
-            else if (strcmp(token, "USER") == 0)
-            {
-              token = strtok_r(rest, " ", &rest);
-              memset(user, '\0', BUFFER_SIZE + 1);
-              strcpy(user,token);
-              have_user = 1;
-            }
-            // else do nothing, not valid message
+              /* parse the buffer, put contents in nick[], user[],
+                 or neither */
 
-            memset (buffer, '\0', BUFFER_SIZE + 1);
-            buf = buffer;
-            bytes_left = BUFFER_SIZE;
+              rest = current_msg;
+              token = strtok_r(rest, " ", &rest);
+              if (strcmp(token, "NICK") == 0)
+              {
+                token = strtok_r(rest, "\r", &rest);
+                strcpy (nick,token);
+                have_nick = 1;
+              }
+              else if (strcmp(token, "USER") == 0)
+              {
+                token = strtok_r(rest, " ", &rest);
+                strcpy(user,token);
+                have_user = 1;
+                token = strtok_r(rest, "\r", &rest);
+              }
+              else // not a valid message
+              {
+                token = strtok_r(rest, "\r", &rest);
+              } 
+
+              rest = rest + 1; // points past end of parsed message
+              if (*rest == '\0') // no next message, reset
+              {
+                memset (buffer, '\0', BUFFER_SIZE + 1);
+                buf = buffer;
+                bytes_left = BUFFER_SIZE;
+                current_msg = buffer;
+              }              
+              else // another message already started in buffer, cannot reset
+              {
+                current_msg = rest;
+              }
+
+            }
+            while (strstr(current_msg, "\r\n") != NULL);
+
           }
         }
+
         char actualMsg[BUFFER_SIZE + 1];
         strcpy(actualMsg,msgFirstPart);
         strcat(actualMsg,nick);
