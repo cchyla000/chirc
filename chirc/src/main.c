@@ -126,13 +126,6 @@ int main(int argc, char *argv[])
         break;
     }
 
-    /* Your code goes here */
-
-
-    /* IMPORTANT: Like the oneshot-single.c, we are creating the socket and sockaddr
-     * structures manually. Your solution _must_ use getaddrinfo instead. You can see
-     * examples of this in client.c and in server-pthreads.c */
-
     int server_socket;
     int client_socket;
     struct addrinfo hints, *res, *p;
@@ -142,30 +135,31 @@ int main(int argc, char *argv[])
 
     int have_user = 0;
     int have_nick = 0;
-    char buffer[BUFFER_SIZE + 1]; // +1 for '\0'
-    char nick[BUFFER_SIZE + 1];
-    char user[BUFFER_SIZE + 1];
-    memset (buffer, '\0', BUFFER_SIZE + 1);
-    memset (nick, '\0', BUFFER_SIZE + 1);
-    memset (user, '\0', BUFFER_SIZE + 1);
+
+    char buffer[BUFFER_SIZE + 1];  // +1 for '\0' at end of max msg for parsing
+    char constructed_msg[BUFFER_SIZE + 1];
+    char nick[BUFFER_SIZE];
+    char user[BUFFER_SIZE];
+
+    /* The start of the current msg being parsed: */
+    char *current_msg = buffer;
+    /* Location within the buffer where recv will start reading into next: */
+    char *buf = buffer;
 
     char *token;
     char *rest;
-    /*
-    Example constructed message:
-    ":bar.example.com 001 user1 :Welcome to the Internet Relay Network user1!user1@foo.example.com\r\n"
-    */
     char *msg_first_part = ":bar.example.com 001 ";
     char *msg_second_part = " :Welcome to the Internet Relay Network ";
     char *msg_third_part = "@foo.example.com\r\n";
+
+    memset(buffer, '\0', BUFFER_SIZE + 1);
+    memset(nick, '\0', BUFFER_SIZE);
+    memset(user, '\0', BUFFER_SIZE);
+
     memset(&hints, 0, sizeof(hints));
     hints.ai_family = AF_INET;
     hints.ai_socktype = SOCK_STREAM;
-    hints.ai_flags = AI_PASSIVE; // return my address, so I can bind() to it
-
-    char *current_msg = buffer;
-    char* buf;
-    buf = buffer;
+    hints.ai_flags = AI_PASSIVE;
 
     int nbytes;
     int bytes_left;
@@ -206,10 +200,9 @@ int main(int argc, char *argv[])
       }
 
       break;
-
     }
 
-    freeaddrinfo(res); // free the linked list
+    freeaddrinfo(res);  // Free the linked list
 
     if (p == NULL)
     {
@@ -226,17 +219,24 @@ int main(int argc, char *argv[])
         {
             nbytes = recv(client_socket, buf, bytes_left, 0);
             bytes_left -= nbytes;
-            if (nbytes == 0) // client closed the connection
+            if (nbytes == 0)  // Client closed the connection
             {
-              close(server_socket);
-              return 0;
+                close(server_socket);
+                return 0;
             }
             buf += nbytes;
 
-            /* parse the buffer, put contents in nick[], user[],
-               or neither */
+            /*
+             * So long as the buffer contains the substring "\r\n" within
+             * it, there remains a message that must be parsed before a 
+             * new message (or fragment of a message) is read into the buffer.
+             */
             while (strstr(current_msg, "\r\n") != NULL)
             {
+                /*
+                 * Parse the buffer and put contents in nick[], 
+                 * user[], or neither (if invalid). 
+                 */
                 rest = current_msg;
                 token = strtok_r(rest, " ", &rest);
                 if (strcmp(token, "NICK") == 0)
@@ -252,27 +252,32 @@ int main(int argc, char *argv[])
                     have_user = 1;
                     token = strtok_r(rest, "\r", &rest);
                 }
-                else // not a valid message
+                else 
                 {
                     token = strtok_r(rest, "\r", &rest);
                 }
 
-                rest = rest + 1; // points past end of parsed message
-                if (*rest == '\0') // no next message, reset
+                rest = rest + 1;  // Point past the end of parsed message
+                if (*rest == '\0')  // No next message, so reset buffer
                 {
                     memset(buffer, '\0', BUFFER_SIZE + 1);
-                    buf = buffer;
                     bytes_left = BUFFER_SIZE;
+                    buf = buffer;
                     current_msg = buffer;
                 }
-                else // another message already started in buffer, cannot reset
+                else  // Another message already started in buffer, cannot reset
                 {
                     current_msg = rest;
                 }
             }
         }
-
-        char constructed_msg[BUFFER_SIZE + 1];
+       
+        /* 
+         * Reset constructed_msg buffer in case previous welcome message
+         * was sent to another client. Then, construct the message with
+         * specified nickname and username parameters and send to client
+         */ 
+        memset(constructed_msg, '\0', BUFFER_SIZE + 1); 
         strcpy(constructed_msg, msg_first_part);
         strcat(constructed_msg, nick);
         strcat(constructed_msg, msg_second_part);
