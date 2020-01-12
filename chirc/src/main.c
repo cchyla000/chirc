@@ -52,8 +52,9 @@
 
 /* A single message has max length of 512 characters */
 #define BUFFER_SIZE 512
-static int parse_buffer (char *buffer, char *nick, 
+static int parse_buffer (char *buffer, char *nick,
                          char *user, int bytes_in_buffer);
+static void construct_wel_msg(char *msg, char *nick, char *user);
 
 int main(int argc, char *argv[])
 {
@@ -140,12 +141,6 @@ int main(int argc, char *argv[])
     char nick[BUFFER_SIZE];
     char user[BUFFER_SIZE];
 
-
-    char *msg_first_part = ":bar.example.com 001 ";
-    char *msg_second_part = " :Welcome to the Internet Relay Network ";
-    char *msg_third_part = "@foo.example.com\r\n";
-
-
     memset(&hints, 0, sizeof(hints));
     hints.ai_family = AF_INET;
     hints.ai_socktype = SOCK_STREAM;
@@ -210,9 +205,9 @@ int main(int argc, char *argv[])
         client_socket = accept(server_socket, (struct sockaddr *) &client_addr, &sin_size);
 
         /* Continue receiving messages until we have a nickname and username. */
-        while ((*nick == '\0') || (*user == '\0')) 
+        while ((*nick == '\0') || (*user == '\0'))
         {
-            nbytes = recv(client_socket, &buffer[bytes_in_buffer], 
+            nbytes = recv(client_socket, &buffer[bytes_in_buffer],
                           (BUFFER_SIZE - bytes_in_buffer), 0);
             if (nbytes == 0)  // Client closed the connection
             {
@@ -222,20 +217,11 @@ int main(int argc, char *argv[])
             bytes_in_buffer += nbytes;
             bytes_in_buffer = parse_buffer(buffer, nick, user, bytes_in_buffer);
         }
-       
-        /* 
-         * Reset constructed_msg buffer in case previous welcome message
-         * was sent to another client. Then, construct the message with
-         * specified nickname and username parameters and send to client
-         */ 
-        memset(constructed_msg, '\0', BUFFER_SIZE + 1); 
-        strcpy(constructed_msg, msg_first_part);
-        strcat(constructed_msg, nick);
-        strcat(constructed_msg, msg_second_part);
-        strcat(constructed_msg, nick);
-        strcat(constructed_msg, "!");
-        strcat(constructed_msg, user);
-        strcat(constructed_msg, msg_third_part);
+
+        /*
+         * Construct welcome message and send to client
+         */
+        construct_wel_msg(constructed_msg, nick, user);
         send(client_socket, constructed_msg, strlen(constructed_msg), 0);
     }
 
@@ -244,14 +230,35 @@ int main(int argc, char *argv[])
 }
 
 /*
+ * Reset msg buffer in case previous welcome message
+ * was sent to another client. Then, construct the message with
+ * given nickname and username parameters in specified template
+ */
+static void construct_wel_msg(char *msg, char *nick, char *user)
+{
+    char *msg_first_part = ":bar.example.com 001 ";
+    char *msg_second_part = " :Welcome to the Internet Relay Network ";
+    char *msg_third_part = "@foo.example.com\r\n";
+
+    memset(msg, '\0', BUFFER_SIZE + 1);
+    strcpy(msg, msg_first_part);
+    strcat(msg, nick);
+    strcat(msg, msg_second_part);
+    strcat(msg, nick);
+    strcat(msg, "!");
+    strcat(msg, user);
+    strcat(msg, msg_third_part);
+}
+
+/*
  * Parses the buffer so long as the buffer contains the substring
  * "\r\n" within it. If the message is a nickname, put the contents
  * in *nick; if the message is a username, put the contents in
- * *user. Once the buffer is completely parsed, move the remaining 
- * contents of the buffer to front of the buffer, recalculate 
- * bytes_in_buffer, and return this recalculated value 
+ * *user. Once the buffer is completely parsed, move the remaining
+ * contents of the buffer to front of the buffer, recalculate
+ * bytes_in_buffer, and return this recalculated value
  */
-static int parse_buffer (char *buffer, char *nick, 
+static int parse_buffer (char *buffer, char *nick,
                          char *user, int bytes_in_buffer)
 {
     char *rest;
@@ -261,14 +268,14 @@ static int parse_buffer (char *buffer, char *nick,
 
     /*
      * So long as the buffer contains the substring "\r\n" within
-     * it, there remains a message that must be parsed before a 
+     * it, there remains a message that must be parsed before a
      * new message (or fragment of a message) is read into the buffer.
      */
     while (strstr(current_msg, "\r\n") != NULL)
     {
         /*
-         * Parse the buffer and put contents in nick[], 
-         * user[], or neither (if invalid). 
+         * Parse the buffer and put contents in nick[],
+         * user[], or neither (if invalid).
          */
         rest = current_msg;
         token = strtok_r(rest, " ", &rest);
@@ -283,7 +290,7 @@ static int parse_buffer (char *buffer, char *nick,
             strcpy(user, token);
             token = strtok_r(rest, "\r", &rest);
         }
-        else 
+        else
         {
             token = strtok_r(rest, "\r", &rest);
         }
@@ -296,12 +303,11 @@ static int parse_buffer (char *buffer, char *nick,
         memset(buffer, '\0', BUFFER_SIZE + 1);
         return 0;
     }
-    else  // Another message already started in buffer, move to front of buffer 
+    else  // Another message already started in buffer, move to front of buffer
     {
         strcpy(buffer, current_msg);
-        bytes_in_buffer = bytes_in_buffer - (current_msg - buffer); 
+        bytes_in_buffer = bytes_in_buffer - (current_msg - buffer);
         memset(&buffer[bytes_in_buffer], '\0', (BUFFER_SIZE - bytes_in_buffer));
-        return bytes_in_buffer; 
+        return bytes_in_buffer;
     }
 }
-
