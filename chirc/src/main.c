@@ -52,6 +52,8 @@
 
 /* A single message has max length of 512 characters */
 #define BUFFER_SIZE 512
+static int parse_buffer (char *buffer, char *nick, 
+                         char *user, int bytes_in_buffer);
 
 int main(int argc, char *argv[])
 {
@@ -133,28 +135,16 @@ int main(int argc, char *argv[])
     int yes = 1;
     socklen_t sin_size = sizeof(struct sockaddr_in);
 
-    int have_user = 0;
-    int have_nick = 0;
-
     char buffer[BUFFER_SIZE + 1];  // +1 for '\0' at end of max msg for parsing
     char constructed_msg[BUFFER_SIZE + 1];
     char nick[BUFFER_SIZE];
     char user[BUFFER_SIZE];
 
-    /* The start of the current msg being parsed: */
-    char *current_msg = buffer;
-    /* Location within the buffer where recv will start reading into next: */
-    char *buf = buffer;
 
-    char *token;
-    char *rest;
     char *msg_first_part = ":bar.example.com 001 ";
     char *msg_second_part = " :Welcome to the Internet Relay Network ";
     char *msg_third_part = "@foo.example.com\r\n";
 
-    memset(buffer, '\0', BUFFER_SIZE + 1);
-    memset(nick, '\0', BUFFER_SIZE);
-    memset(user, '\0', BUFFER_SIZE);
 
     memset(&hints, 0, sizeof(hints));
     hints.ai_family = AF_INET;
@@ -162,7 +152,7 @@ int main(int argc, char *argv[])
     hints.ai_flags = AI_PASSIVE;
 
     int nbytes;
-    int bytes_left;
+    int bytes_in_buffer = 0;
 
     if (getaddrinfo (NULL, port, &hints, &res) != 0)
     {
@@ -212,64 +202,24 @@ int main(int argc, char *argv[])
 
     while (1)
     {
-        client_socket = accept(server_socket, (struct sockaddr *) &client_addr, &sin_size);
-        bytes_left = BUFFER_SIZE;
+        memset(buffer, '\0', BUFFER_SIZE + 1);
+        memset(nick, '\0', BUFFER_SIZE);
+        memset(user, '\0', BUFFER_SIZE);
 
-        while ((!have_nick) || (!have_user))
+        client_socket = accept(server_socket, (struct sockaddr *) &client_addr, &sin_size);
+
+        while ((*nick == '\0') || (*user == '\0'))
         {
-            nbytes = recv(client_socket, buf, bytes_left, 0);
-            bytes_left -= nbytes;
+            nbytes = recv(client_socket, &buffer[bytes_in_buffer], 
+                          (BUFFER_SIZE - bytes_in_buffer), 0);
             if (nbytes == 0)  // Client closed the connection
             {
                 close(server_socket);
                 return 0;
             }
-            buf += nbytes;
+            bytes_in_buffer += nbytes;
 
-            /*
-             * So long as the buffer contains the substring "\r\n" within
-             * it, there remains a message that must be parsed before a 
-             * new message (or fragment of a message) is read into the buffer.
-             */
-            while (strstr(current_msg, "\r\n") != NULL)
-            {
-                /*
-                 * Parse the buffer and put contents in nick[], 
-                 * user[], or neither (if invalid). 
-                 */
-                rest = current_msg;
-                token = strtok_r(rest, " ", &rest);
-                if (strcmp(token, "NICK") == 0)
-                {
-                    token = strtok_r(rest, "\r", &rest);
-                    strcpy (nick, token);
-                    have_nick = 1;
-                }
-                else if (strcmp(token, "USER") == 0)
-                {
-                    token = strtok_r(rest, " ", &rest);
-                    strcpy(user, token);
-                    have_user = 1;
-                    token = strtok_r(rest, "\r", &rest);
-                }
-                else 
-                {
-                    token = strtok_r(rest, "\r", &rest);
-                }
-
-                rest = rest + 1;  // Point past the end of parsed message
-                if (*rest == '\0')  // No next message, so reset buffer
-                {
-                    memset(buffer, '\0', BUFFER_SIZE + 1);
-                    bytes_left = BUFFER_SIZE;
-                    buf = buffer;
-                    current_msg = buffer;
-                }
-                else  // Another message already started in buffer, cannot reset
-                {
-                    current_msg = rest;
-                }
-            }
+            bytes_in_buffer = parse_buffer(buffer, nick, user, bytes_in_buffer);
         }
        
         /* 
@@ -291,3 +241,63 @@ int main(int argc, char *argv[])
     close(server_socket);
     return 0;
 }
+
+/*
+ * Returns bytes_in_buffer
+ */
+static int parse_buffer (char *buffer, char *nick, 
+                         char *user, int bytes_in_buffer)
+{
+    char *rest;
+    char *token;
+    /* The start of the current msg being parsed: */
+    char *current_msg = buffer;
+
+    /*
+     * So long as the buffer contains the substring "\r\n" within
+     * it, there remains a message that must be parsed before a 
+     * new message (or fragment of a message) is read into the buffer.
+     */
+    while (strstr(current_msg, "\r\n") != NULL)
+    {
+        /*
+         * Parse the buffer and put contents in nick[], 
+         * user[], or neither (if invalid). 
+         */
+        rest = current_msg;
+        token = strtok_r(rest, " ", &rest);
+        if (strcmp(token, "NICK") == 0)
+        {
+            token = strtok_r(rest, "\r", &rest);
+            strcpy (nick, token);
+        }
+        else if (strcmp(token, "USER") == 0)
+        {
+            token = strtok_r(rest, " ", &rest);
+            strcpy(user, token);
+            token = strtok_r(rest, "\r", &rest);
+        }
+        else 
+        {
+            token = strtok_r(rest, "\r", &rest);
+        }
+
+        rest = rest + 1;  // Point past the end of parsed message
+        current_msg = rest;
+
+    }
+    if (*current_msg == '\0')  // No next message, so reset buffer
+    {
+        memset(buffer, '\0', BUFFER_SIZE + 1);
+        return 0;
+    }
+    else  // Another message already started in buffer, move to front of buffer 
+    {
+        strcpy(buffer, current_msg);
+        bytes_in_buffer = bytes_in_buffer - (current_msg - buffer); 
+        memset(&buffer[bytes_in_buffer], '\0', (BUFFER_SIZE - bytes_in_buffer));
+        return bytes_in_buffer; 
+    }
+}
+    
+
