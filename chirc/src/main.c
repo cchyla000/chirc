@@ -202,13 +202,15 @@ int main(int argc, char *argv[])
 
     while (1)
     {
+        /* Clear contents from previous client. */
         memset(buffer, '\0', BUFFER_SIZE + 1);
         memset(nick, '\0', BUFFER_SIZE);
         memset(user, '\0', BUFFER_SIZE);
 
         client_socket = accept(server_socket, (struct sockaddr *) &client_addr, &sin_size);
 
-        while ((*nick == '\0') || (*user == '\0'))
+        /* Continue receiving messages until we have a nickname and username. */
+        while ((*nick == '\0') || (*user == '\0')) 
         {
             nbytes = recv(client_socket, &buffer[bytes_in_buffer], 
                           (BUFFER_SIZE - bytes_in_buffer), 0);
@@ -218,7 +220,6 @@ int main(int argc, char *argv[])
                 return 0;
             }
             bytes_in_buffer += nbytes;
-
             bytes_in_buffer = parse_buffer(buffer, nick, user, bytes_in_buffer);
         }
        
@@ -243,7 +244,12 @@ int main(int argc, char *argv[])
 }
 
 /*
- * Returns bytes_in_buffer
+ * Parses the buffer so long as the buffer contains the substring
+ * "\r\n" within it. If the message is a nickname, put the contents
+ * in *nick; if the message is a username, put the contents in
+ * *user. Once the buffer is completely parsed, move the remaining 
+ * contents of the buffer to front of the buffer, recalculate 
+ * bytes_in_buffer, and return this recalculated value 
  */
 static int parse_buffer (char *buffer, char *nick, 
                          char *user, int bytes_in_buffer)
@@ -284,7 +290,6 @@ static int parse_buffer (char *buffer, char *nick,
 
         rest = rest + 1;  // Point past the end of parsed message
         current_msg = rest;
-
     }
     if (*current_msg == '\0')  // No next message, so reset buffer
     {
@@ -299,5 +304,4 @@ static int parse_buffer (char *buffer, char *nick,
         return bytes_in_buffer; 
     }
 }
-    
 
