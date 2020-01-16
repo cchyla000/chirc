@@ -49,9 +49,11 @@
 #include <arpa/inet.h>
 #include <netdb.h>
 #include "log.h"
+#include "main.h"
 
 /* A single message has max length of 512 characters */
 #define BUFFER_SIZE 512
+
 static int parse_buffer (char *buffer, char *nick,
                          char *user, int bytes_in_buffer);
 static void construct_wel_msg(char *msg, char *nick, char *user);
