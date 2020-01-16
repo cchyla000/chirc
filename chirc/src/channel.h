@@ -13,10 +13,10 @@ typedef struct {
    UT_hash_handle hh;
 } chirc_channel_t;
 
-int *create_channel(ctx_t *ctx);
-int *add_user_to_channel(chirc_channel_t *channel, chirc_user_t *user);
-int *remove_user_from_channel(chirc_channel_t *channel, chirc_user_t *user);
-int *update_user_nick_in_channel(chirc_channel_t *channel, char *old_nick,
+int create_channel(ctx_t *ctx);
+int add_user_to_channel(chirc_channel_t *channel, chirc_user_t *user);
+int remove_user_from_channel(chirc_channel_t *channel, chirc_user_t *user);
+int update_user_nick_in_channel(chirc_channel_t *channel, char *old_nick,
                                                               char *new_nick);
 int *destroy_channel(ctx_t *ctx, chirc_channel_t *channel);
 
