@@ -49,7 +49,7 @@
 #include <arpa/inet.h>
 #include <netdb.h>
 #include "log.h"
-#include "main.h"
+#include "ctx.h"
 
 /* A single message has max length of 512 characters */
 #define BUFFER_SIZE 512
