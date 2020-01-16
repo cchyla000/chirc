@@ -19,4 +19,4 @@ int handle_MODE(server_ctx *ctx, chirc_message_t *msg, user_t *user);
 int handle_LIST(server_ctx *ctx, chirc_message_t *msg, user_t *user);
 int handle_OPER(server_ctx *ctx, chirc_message_t *msg, user_t *user);
 
-#endif /* CHIRC_MESSAGE_H */
+#endif /* CHIRC_HANDLER_H */
