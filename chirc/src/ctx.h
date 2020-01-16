@@ -6,13 +6,13 @@
 #ifndef CHIRC_CTX_H
 #define CHIRC_CTX_H
 
+#define MAX_MSG_LENGTH 512
+
 typedef struct server_ctx
 {
     chirc_user_t *users;
     chirc_channel_t *channels;
-    bool users_lock_enabled;
     pthread_mutex_t users_lock;
-    bool channels_lock_enabled;
     pthread_mutex_t channels_lock;
 } ctx_t;
 

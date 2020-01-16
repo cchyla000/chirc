@@ -22,7 +22,9 @@ int chirc_message_from_string(chirc_message_t *msg, char *s)
     token = strtok_r(rest, " ", *rest);
     msg->cmd = token;    
 
-    for (i=0; i < MAX_PARAMS && 
+    /* Continue parsing until MAX_PARAMS exceeded,  
+       end of message, or no more parameters detected */
+    for (i=0; i < MAX_PARAMS && (*rest != '\n') && 
         (token = strtok_r(rest, " \r", &rest)); i++)
     {
         msg->params[i] = token;
