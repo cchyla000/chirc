@@ -6,7 +6,7 @@
 #define CHIRC_CHANNEL_H
 
 typedef struct {
-   char *channel_name;
+   char channel_name[50];
    chirc_user_t *users; // hash of users in channel
    bool lock_enabled;
    pthread_mutex_t lock;

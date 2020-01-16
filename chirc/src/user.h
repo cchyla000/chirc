@@ -5,10 +5,10 @@
 #define CHIRC_USER_H
 
 typedef struct {
-    char *nick;
+    char nick[50];
     char *user;
     int socket;
-    bool is_registered;   
+    bool is_registered;
     UT_hash_handle hh;
 } chirc_user_t;
 
