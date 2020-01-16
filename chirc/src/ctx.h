@@ -1,5 +1,5 @@
 #include <pthread.h>
-#include "uthash.h"
+#include "lib/uthash.h"
 #include "user.h"
 #include "channel.h"
 

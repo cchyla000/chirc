@@ -1,4 +1,4 @@
-#include "uthash.h"
+#include "lib/uthash.h"
 #include "message.h"
 
 #ifndef CHIRC_USER_H

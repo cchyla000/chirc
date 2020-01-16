@@ -1,10 +1,12 @@
 #ifndef CHIRC_MESSAGE_H
 #define CHIRC_MESSAGE_H
 
+#define MAX_PARAMS 15;
+
 typedef struct {
     char *prefix;
     char *cmd;
-    char *params[15];
+    char *params[MAX_PARAMS];
     unsigned int nparams;
     bool longlast;
 } chirc_message_t;
