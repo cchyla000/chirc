@@ -2,11 +2,11 @@
 #define CHIRC_MESSAGE_H
 
 typedef struct {
-   char *prefix;
-   char *cmd;
-   char *params[15];
-   unsigned int nparams;
-   bool longlast;
+    char *prefix;
+    char *cmd;
+    char *params[15];
+    unsigned int nparams;
+    bool longlast;
 } chirc_message_t;
 
 int chirc_message_from_string(chirc_message_t *msg, char *s);

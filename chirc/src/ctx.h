@@ -3,8 +3,8 @@
 #include "user.h"
 #include "channel.h"
 
-#ifndef CHIRC_MAIN_H
-#define CHIRC_MAIN_H
+#ifndef CHIRC_CTX_H
+#define CHIRC_CTX_H
 
 typedef struct server_ctx
 {
@@ -23,4 +23,4 @@ struct worker_args
     ctx_t *ctx;
 };
 
-#endif /* CHIRC_MAIN_H */
+#endif /* CHIRC_CTX_H */
