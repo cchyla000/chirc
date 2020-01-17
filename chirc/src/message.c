@@ -31,7 +31,14 @@ int chirc_message_from_string(chirc_message_t *msg, char *s)
     }
     
     msg->nparams = i;
-    return 0;
+
+    /* Must move pointer to end of message if we haven't already */
+    if (i == MAX_PARAMS && (*rest != '\n'))
+    {
+        strtok_r(rest, "\r", &rest);    
+    }
+
+    return (rest - s); 
 }
 
 int chirc_message_to_string(chirc_message_t *msg, char **s)

@@ -6,7 +6,7 @@
 #ifndef CHIRC_CTX_H
 #define CHIRC_CTX_H
 
-#define MAX_MSG_LENGTH 512
+#define MAX_MSG_LEN 512
 
 typedef struct server_ctx
 {
