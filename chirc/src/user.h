@@ -8,6 +8,7 @@ typedef struct {
     char nick[50];
     char *user;
     int socket;
+    chirc_channel_t *channels; // hash of channels user is a part of
     bool is_registered;
     UT_hash_handle hh;
 } chirc_user_t;
