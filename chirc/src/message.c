@@ -19,7 +19,7 @@ int chirc_message_from_string(struct chirc_message_t *msg, char *s)
     }
 
     /* Parse command */
-    token = strtok_r(rest, " ", *rest);
+    token = strtok_r(rest, " ", &rest);
     msg->cmd = token;    
 
     /* Continue parsing until MAX_PARAMS exceeded,  
@@ -58,7 +58,7 @@ int chirc_message_add_parameter(struct chirc_message_t *msg, char *param, bool l
 {
     if (msg->nparams < MAX_PARAMS)
     {
-        msg->params[nparams] = param;
+        msg->params[msg->nparams] = param;
         msg->nparams++;
         msg->longlast = longlast;
     }
@@ -68,7 +68,7 @@ int chirc_message_add_parameter(struct chirc_message_t *msg, char *param, bool l
     }
 }
 
-int chirc_message_destroy(struct chirc_message_t *msg);
+int chirc_message_destroy(struct chirc_message_t *msg)
 {
     return 0;
 }
