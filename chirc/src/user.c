@@ -58,6 +58,9 @@ void *service_user(void *args)
     user = calloc(1, sizeof(chirc_user_t));
     client_socket = wa->socket;
     user->socket = client_socket;
+    user->is_registered = false;
+    user->nick = NULL;
+    user->user = NULL;
     ctx = wa->ctx;
 
 
