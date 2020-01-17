@@ -135,7 +135,7 @@ int main(int argc, char *argv[])
 
     /* ADDED: Malloc the server context and initialize its values,
      * which includes initializing the mutex.*/
-    ctx_t *ctx = calloc(1, sizeof(ctx_t));
+    struct ctx_t *ctx = calloc(1, sizeof(struct ctx_t*));
     ctx->users = NULL;
     ctx->channels = NULL;
     pthread_mutex_init(&ctx->users_lock, NULL);

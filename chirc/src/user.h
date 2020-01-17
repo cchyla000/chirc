@@ -5,14 +5,14 @@
 #include "message.h"
 #include "channel.h"
 
-typedef struct {
+struct chirc_user_t {
     char nick[50];
     char *user;
     int socket;
-    chirc_channel_t *channels; // hash of channels user is a part of
+    struct chirc_channel_t *channels; // hash of channels user is a part of
     bool is_registered;
     UT_hash_handle hh;
-} chirc_user_t;
+};
 
 void *service_user(void *args);
 

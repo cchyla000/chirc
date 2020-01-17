@@ -1,7 +1,19 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
+#include <string.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <netdb.h>
+#include <pthread.h>
+#include <signal.h>
+#include <errno.h>
+#include <time.h>
+
 #include "user.h"
-#include "ctx.h"
+#include "handler.h"
 
 /*
  * Worst case scenario is if we cannot parse a first message of
@@ -13,7 +25,8 @@
 #define MAX_MSG_LEN 512
 #define BUFFER_LEN ((2 * MAX_MSG_LEN) + 1)
 
-typedef int (*handler_function)(ctx_t *ctx, chirc_message_t *msg, chirc_user_t *user);
+typedef int (*handler_function)(struct ctx_t *ctx, struct chirc_message_t *msg,
+                                struct chirc_user_t *user);
 
 struct handler_entry
 {
@@ -46,25 +59,22 @@ int num_handlers = sizeof(handlers) / sizeof(struct handler_entry);
 void *service_user(void *args)
 {
     struct worker_args *wa;
-    int client_socket, nbytes;
-    ctx_t *ctx;
-    chirc_user_t *user;
+    int client_socket, nbytes, i;
+    struct ctx_t *ctx;
+    struct chirc_user_t *user;
 
     char buffer[BUFFER_LEN + 1];  // + 1 for extra '\0' at end
     char tosend[MAX_MSG_LEN];
     char *tmp;
     int bytes_in_buffer = 0;
     wa = (struct worker_args*) args;
-    user = calloc(1, sizeof(chirc_user_t));
+    user = calloc(1, sizeof(struct chirc_user_t *));
     client_socket = wa->socket;
+    memset(user, 0, sizeof (struct chirc_user_t));
     user->socket = client_socket;
-    user->is_registered = false;
-    user->nick = NULL;
-    user->user = NULL;
     ctx = wa->ctx;
 
-
-    chirc_message_t msg;
+    struct chirc_message_t msg;
     char *cmd;
 
     /*

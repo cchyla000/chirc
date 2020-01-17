@@ -3,7 +3,7 @@
 #include <string.h>
 #include "message.h"
 
-int chirc_message_from_string(chirc_message_t *msg, char *s)
+int chirc_message_from_string(struct chirc_message_t *msg, char *s)
 {
     char *rest;
     char *token = NULL;
@@ -41,12 +41,12 @@ int chirc_message_from_string(chirc_message_t *msg, char *s)
     return (rest - s); 
 }
 
-int chirc_message_to_string(chirc_message_t *msg, char **s)
+int chirc_message_to_string(struct chirc_message_t *msg, char **s)
 {
     return 0;
 }
 
-int chirc_message_construct(chirc_message_t *msg, char *prefix, char *cmd)
+int chirc_message_construct(struct chirc_message_t *msg, char *prefix, char *cmd)
 {
     msg->prefix = prefix;
     msg->cmd = cmd;
@@ -54,7 +54,7 @@ int chirc_message_construct(chirc_message_t *msg, char *prefix, char *cmd)
     return 0;
 }
 
-int chirc_message_add_parameter(chirc_message_t *msg, char *param, bool longlast)
+int chirc_message_add_parameter(struct chirc_message_t *msg, char *param, bool longlast)
 {
     if (msg->nparams < MAX_PARAMS)
     {
@@ -68,7 +68,7 @@ int chirc_message_add_parameter(chirc_message_t *msg, char *param, bool longlast
     }
 }
 
-int chirc_message_destroy(chirc_message_t *msg);
+int chirc_message_destroy(struct chirc_message_t *msg);
 {
     return 0;
 }

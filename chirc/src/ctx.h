@@ -8,19 +8,19 @@
 
 #define MAX_MSG_LEN 512
 
-typedef struct server_ctx
+struct ctx_t 
 {
-    chirc_user_t *users;
-    chirc_channel_t *channels;
+    struct chirc_user_t *users;
+    struct chirc_channel_t *channels;
     pthread_mutex_t users_lock;
     pthread_mutex_t channels_lock;
-} ctx_t;
+};
 
 struct worker_args
 {
     int socket;
     /* ADDED: We need to pass the server context to the worker thread */
-    ctx_t *ctx;
+    struct ctx_t *ctx;
 };
 
 #endif /* CHIRC_CTX_H */
