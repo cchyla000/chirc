@@ -3,6 +3,7 @@
 
 #include "message.h"
 #include "user.h"
+#include "ctx.h"
 
 int handle_NICK(ctx_t *ctx, chirc_message_t *msg, chirc_user_t *user);
 int handle_USER(ctx_t *ctx, chirc_message_t *msg, chirc_user_t *user);
