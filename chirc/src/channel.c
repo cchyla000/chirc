@@ -5,7 +5,7 @@
 chirc_channel_t *create_channel(ctx_t *ctx, char *channel_name)
 {
     chirc_channel_t *channel;
-    channel = calloc(1, sizeof(channel));
+    channel = calloc(1, sizeof(chirc_channel_t));
     strcpy(channel->channel_name, channel_name);
     channel->users = NULL;
     pthread_mutex_init(&channel->lock, NULL);
