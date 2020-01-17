@@ -47,7 +47,7 @@ void *service_user(void *args)
         tmp = buffer;
         while (strstr(tmp, "\r\n") != NULL)
         {
-            memset(&msg, 0); 
+            memset(&msg, 0, sizeof(msg)); 
             nbytes = chirc_message_from_string(&msg, tmp);
            
             /* Point to beginning of next msg if present. */ 
