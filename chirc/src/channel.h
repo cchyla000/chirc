@@ -1,9 +1,10 @@
-#include <pthread.h>
-#include "lib/uthash.h"
-#include "user.h"
-
 #ifndef CHIRC_CHANNEL_H
 #define CHIRC_CHANNEL_H
+
+#include <pthread.h>
+#include "../lib/uthash.h"
+#include "user.h"
+#include "ctx.h"
 
 typedef struct {
    char channel_name[50];

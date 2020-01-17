@@ -229,14 +229,16 @@ int main(int argc, char *argv[])
             return 1;
         }
     }
+/*
     HASH_ITER(hh, ctx->users, s, tmp) {
-      HASH_DEL(users, s);
+      HASH_DEL(ctx->users, s);
       free(s);
     }
     HASH_ITER(hh, ctx->channels, s, tmp) {
-      HASH_DEL(channels, s);
+      HASH_DEL(ctx->channels, s);
       free(s);
     }
+*/
     pthread_mutex_destroy(&ctx->users_lock);
     pthread_mutex_destroy(&ctx->channels_lock);
     free(ctx);

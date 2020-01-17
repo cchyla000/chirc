@@ -1,7 +1,9 @@
 #ifndef CHIRC_MESSAGE_H
 #define CHIRC_MESSAGE_H
 
-#define MAX_PARAMS 15;
+#include <stdbool.h>
+
+#define MAX_PARAMS 15
 
 typedef struct {
     char *prefix;

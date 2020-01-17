@@ -1,10 +1,10 @@
-#include <pthread.h>
-#include "lib/uthash.h"
-#include "user.h"
-#include "channel.h"
-
 #ifndef CHIRC_CTX_H
 #define CHIRC_CTX_H
+
+#include <pthread.h>
+#include "../lib/uthash.h"
+#include "user.h"
+#include "channel.h"
 
 #define MAX_MSG_LEN 512
 

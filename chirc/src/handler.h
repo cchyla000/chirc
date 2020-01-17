@@ -1,8 +1,8 @@
-#include "message.h"
-#include "user.h"
-
 #ifndef CHIRC_HANDLER_H
 #define CHIRC_HANDLER_H
+
+#include "message.h"
+#include "user.h"
 
 int handle_NICK(ctx_t *ctx, chirc_message_t *msg, chirc_user_t *user);
 int handle_USER(ctx_t *ctx, chirc_message_t *msg, chirc_user_t *user);

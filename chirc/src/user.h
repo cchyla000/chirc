@@ -1,8 +1,9 @@
-#include "lib/uthash.h"
-#include "message.h"
-
 #ifndef CHIRC_USER_H
 #define CHIRC_USER_H
+
+#include "../lib/uthash.h"
+#include "message.h"
+#include "channel.h"
 
 typedef struct {
     char nick[50];
