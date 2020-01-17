@@ -12,7 +12,10 @@ include_directories(src
 
 add_executable(chirc
     src/main.c
-    src/log.c)
+    src/log.c
+    src/user.c
+    src/channel.c
+    src/message.c)
 
 target_link_libraries(chirc pthread)
 
@@ -42,5 +45,3 @@ foreach(AID ${ASSIGNMENTS})
             DEPENDS chirc link_tests)
 
 endforeach()
-
-
