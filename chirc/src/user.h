@@ -4,6 +4,7 @@
 #include "../lib/uthash.h"
 #include "message.h"
 #include "channel.h"
+#include "ctx.h"
 
 #define MAX_NICK_LEN 9 
 #define MAX_HOST_LEN 63

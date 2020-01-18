@@ -43,7 +43,7 @@ int chirc_message_from_string(struct chirc_message_t *msg, char *s)
 
 int chirc_message_to_string(struct chirc_message_t *msg, char *s)
 {
-    char *tmp = *s;
+    char *tmp = s;
     int i;
  
     if (msg->prefix)

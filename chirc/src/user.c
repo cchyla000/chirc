@@ -64,11 +64,11 @@ int num_handlers = sizeof(handlers) / sizeof(struct handler_entry);
 static int set_host_name(struct chirc_user_t *user, struct worker_args *wa)
 {
     char buffer[NI_MAXHOST];  
-    int success;
+    int error;
  
-    success = getnameinfo(wa->client_addr, sizeof(struct addr_storage), 
+    error = getnameinfo(wa->client_addr, sizeof(struct sockaddr_storage), 
                           buffer, NI_MAXHOST, NULL, 0, 0);
-    if (!success)
+    if (error)
     {
         close(user->socket);
         free(wa);
@@ -77,9 +77,9 @@ static int set_host_name(struct chirc_user_t *user, struct worker_args *wa)
     }
     else if (strlen(buffer) > MAX_HOST_LEN)
     {
-        success = getnameinfo(wa->client_addr, sizeof(struct addr_storage), 
+        error = getnameinfo(wa->client_addr, sizeof(struct sockaddr_storage), 
                               buffer, NI_MAXHOST, NULL, 0, NI_NUMERICHOST);
-        if (!success)
+        if (error)
         {
             close(user->socket);
             free(wa);
@@ -103,7 +103,6 @@ void *service_user(void *args)
     char tosend[MAX_MSG_LEN] = {0};
     char *tmp;
     int bytes_in_buffer = 0;
-    int success;
 
     wa = (struct worker_args*) args;
     client_socket = wa->socket;
@@ -118,6 +117,7 @@ void *service_user(void *args)
     user->is_registered = false;
     pthread_mutex_init(&user->lock, NULL); 
     set_host_name(user, wa);
+    int error;
 
     struct chirc_message_t msg;
     char *cmd;
@@ -156,7 +156,12 @@ void *service_user(void *args)
             for(i=0; i<num_handlers; i++)
                 if (!strcmp(handlers[i].name, cmd))
                 {
-                    handlers[i].func(ctx, &msg, user);
+                    error = handlers[i].func(ctx, &msg, user);
+                    if (error)
+                    {
+                        close(client_socket);
+                        destroy_user_and_exit(user, wa);
+                    }
                     break;
                 }
 
