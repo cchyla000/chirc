@@ -224,7 +224,7 @@ int main(int argc, char *argv[])
         wa = calloc(1, sizeof(struct worker_args));
         wa->socket = client_socket;
         wa->ctx = ctx;
-
+        wa->client_addr = (struct sockaddr *) client_addr;
         if (pthread_create(&worker_thread, NULL, service_user, wa) != 0)
         {
             perror("Could not create a worker thread");

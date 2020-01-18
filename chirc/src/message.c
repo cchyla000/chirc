@@ -82,7 +82,14 @@ int chirc_message_add_parameter(struct chirc_message_t *msg, char *param, bool l
 {
     if (msg->nparams < MAX_PARAMS)
     {
-        msg->params[msg->nparams] = param;
+        if (*param == '\0')  // No parameter specified, use wildcard
+        {
+            msg->params[msg->nparams] = "*";
+        }
+        else 
+        {
+            msg->params[msg->nparams] = param;
+        }
         msg->nparams++;
         msg->longlast = longlast;
     }
@@ -92,29 +99,8 @@ int chirc_message_add_parameter(struct chirc_message_t *msg, char *param, bool l
     }
 }
 
-int chirc_message_add_nickname_parameter(struct chirc_message_t *msg, char *nick)
-{
-    if (msg->nparams < MAX_PARAMS)
-    {
-        if (*nick == '\0')  // No nickname yet, use wildcard
-        {
-            msg->params[msg->nparams] = "*";
-        }
-        else
-        {
-            msg->params[msg->nparams] = nick;
-        }
-        msg->nparams++;
-    }
-    else 
-    {
-        return 1;
-    }
-
-}
-
 int chirc_message_destroy(struct chirc_message_t *msg)
 {
-    return 0;
+    memset(msg, 0, sizeof (struct chirc_message_t));
 }
 

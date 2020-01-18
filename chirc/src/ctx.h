@@ -20,7 +20,9 @@ struct ctx_t
 struct worker_args
 {
     int socket;
-    /* ADDED: We need to pass the server context to the worker thread */
+    /* Used with getnameinfo() to get client hostname, which is the  
+       IP address if hostname cannot be resolved, as IRC specs require */
+    struct sockaddr *client_addr; 
     struct ctx_t *ctx;
 };
 

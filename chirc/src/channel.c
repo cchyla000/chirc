@@ -22,7 +22,7 @@ struct chirc_channel_t *create_channel(struct ctx_t *ctx, char *channel_name)
 int add_user_to_channel(struct chirc_channel_t *channel, struct chirc_user_t *user)
 {
     pthread_mutex_lock(&channel->lock);
-    HASH_ADD_STR(channel->users, nick, user);
+    HASH_ADD_STR(channel->users, nickname, user);
     HASH_ADD_STR(user->channels, channel_name, channel);
     pthread_mutex_unlock(&channel->lock);
     return 0;

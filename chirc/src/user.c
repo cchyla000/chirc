@@ -56,6 +56,42 @@ struct handler_entry handlers[] = {
 
 int num_handlers = sizeof(handlers) / sizeof(struct handler_entry);
 
+/* 
+ * Set struct user hostname field using getnameinfo(); if
+ * hostname can't be resolved or is greater than 63 characters 
+ * in length, then use the numeric form of the hostname. 
+*/
+static int set_host_name(struct chirc_user_t *user, struct worker_args *wa)
+{
+    char buffer[NI_MAXHOST];  
+    int success;
+ 
+    success = getnameinfo(wa->client_addr, sizeof(struct addr_storage), 
+                          buffer, NI_MAXHOST, NULL, 0, 0);
+    if (!success)
+    {
+        close(user->socket);
+        free(wa);
+        free(user);
+        pthread_exit(NULL);
+    }
+    else if (strlen(buffer) > MAX_HOST_LEN)
+    {
+        success = getnameinfo(wa->client_addr, sizeof(struct addr_storage), 
+                              buffer, NI_MAXHOST, NULL, 0, NI_NUMERICHOST);
+        if (!success)
+        {
+            close(user->socket);
+            free(wa);
+            free(user);
+            pthread_exit(NULL);
+        }
+    }
+
+    strncpy(user->hostname, buffer, (MAX_HOST_LEN + 1)); 
+    return 0;
+}
+
 void *service_user(void *args)
 {
     struct worker_args *wa;
@@ -63,16 +99,25 @@ void *service_user(void *args)
     struct ctx_t *ctx;
     struct chirc_user_t *user;
 
-    char buffer[BUFFER_LEN + 1];  // + 1 for extra '\0' at end
-    char tosend[MAX_MSG_LEN];
+    char buffer[BUFFER_LEN + 1] = {0};  // + 1 for extra '\0' at end
+    char tosend[MAX_MSG_LEN] = {0};
     char *tmp;
     int bytes_in_buffer = 0;
+    int success;
+
     wa = (struct worker_args*) args;
-    user = calloc(1, sizeof(struct chirc_user_t *));
     client_socket = wa->socket;
-    memset(user, 0, sizeof (struct chirc_user_t));
-    user->socket = client_socket;
     ctx = wa->ctx;
+
+    /* Create user struct */
+    user = calloc(1, sizeof(struct chirc_user_t *));
+    memset(user->nickname, 0, MAX_NICK_LEN);
+    user->username = NULL;
+    user->socket = client_socket;
+    user->channels = NULL;
+    user->is_registered = false;
+    pthread_mutex_init(&user->lock, NULL); 
+    set_host_name(user, wa);
 
     struct chirc_message_t msg;
     char *cmd;
@@ -92,6 +137,7 @@ void *service_user(void *args)
         {
             close(client_socket);
             free(wa);
+            free(user);
             pthread_exit(NULL);
         }
         bytes_in_buffer += nbytes;
@@ -106,7 +152,7 @@ void *service_user(void *args)
             tmp += (nbytes + 1);
 
             /* Send msg to handler */
-            char *cmd = msg.cmd;
+            cmd = msg.cmd;
             for(i=0; i<num_handlers; i++)
                 if (!strcmp(handlers[i].name, cmd))
                 {
@@ -138,4 +184,14 @@ void *service_user(void *args)
 
     }
 
+}
+
+void destroy_user_and_exit(struct chirc_user_t *user, struct worker_args *wa)
+{
+    // Remove user from all of the channels it is in...
+    // Remove user from the hash in the ctx struct ...
+
+    free(wa);
+    free(user);
+    pthread_exit(NULL);
 }
