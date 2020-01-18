@@ -1,11 +1,12 @@
 #include <stdlib.h>
 #include "channel.h"
 #include "user.h"
+#include "ctx.h"
 
 struct chirc_channel_t *create_channel(struct ctx_t *ctx, char *channel_name)
 {
     struct chirc_channel_t *channel;
-    channel = calloc(1, sizeof(struct chirc_channel_t*));
+    channel = calloc(1, sizeof(struct chirc_channel_t));
     strcpy(channel->channel_name, channel_name);
     channel->users = NULL;
     pthread_mutex_init(&channel->lock, NULL);

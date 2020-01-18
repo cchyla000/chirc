@@ -16,6 +16,7 @@
 #include "user.h"
 #include "handler.h"
 #include "log.h"
+#include "ctx.h"
 
 /*
  * Worst case scenario is if we cannot parse a first message of

@@ -9,7 +9,7 @@
 
 #define MAX_NICK_LEN 9
 #define MAX_HOST_LEN 63
-#define MAX_USER_LEN 512
+#define MAX_USER_LEN 9 
 
 struct chirc_user_t {
     char nickname[MAX_NICK_LEN + 1];

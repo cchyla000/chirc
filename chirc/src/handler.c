@@ -54,45 +54,45 @@ static int send_message(struct chirc_message_t *msg, struct chirc_user_t *user)
 static int send_welcome_messages(struct ctx_t *ctx, struct chirc_user_t *user)
 {
     char param_buffer[MAX_MSG_LEN + 1] = {0};
-    struct chirc_message_t *msg;
+    struct chirc_message_t msg;
     int error;
 
     /* Send RPL_WELCOME: */
-    chirc_message_construct(msg, ctx->server_name, RPL_WELCOME);
-    chirc_message_add_parameter(msg, user->nickname, false);
+    chirc_message_construct(&msg, ctx->server_name, RPL_WELCOME);
+    chirc_message_add_parameter(&msg, user->nickname, false);
     sprintf(param_buffer, ":Welcome to the Internet Relay Network %s!%s@%s",
             user->nickname, user->username, user->hostname);
-    chirc_message_add_parameter(msg, param_buffer, false);
-    error = send_message(msg, user);
+    chirc_message_add_parameter(&msg, param_buffer, false);
+    error = send_message(&msg, user);
     if (error)
     {
         return error;
     }
-    chirc_message_destroy(msg);
+    chirc_message_destroy(&msg);
 
     /* Send RPL_YOURHOST: */
-    chirc_message_construct(msg, ctx->server_name, RPL_YOURHOST);
-    chirc_message_add_parameter(msg, user->nickname, false);
+    chirc_message_construct(&msg, ctx->server_name, RPL_YOURHOST);
+    chirc_message_add_parameter(&msg, user->nickname, false);
     sprintf(param_buffer, ":Your host is %s, running version %s",
             ctx->server_name, IRC_VERSION);
-    chirc_message_add_parameter(msg, param_buffer, false);
-    error = send_message(msg, user);
+    chirc_message_add_parameter(&msg, param_buffer, false);
+    error = send_message(&msg, user);
     if (error)
     {
         return error;
     }
-    chirc_message_destroy(msg);
+    chirc_message_destroy(&msg);
 
     /* Send RPL_CREATED: */
-    chirc_message_construct(msg, ctx->server_name, RPL_CREATED);
-    chirc_message_add_parameter(msg, user->nickname, false);
+    chirc_message_construct(&msg, ctx->server_name, RPL_CREATED);
+    chirc_message_add_parameter(&msg, user->nickname, false);
     sprintf(param_buffer, ":This server was created %s", "NEED TO RECORD TIME");
-    error = send_message(msg, user);
+    error = send_message(&msg, user);
     if (error)
     {
         return error;
     }
-    chirc_message_destroy(msg);
+    chirc_message_destroy(&msg);
 
     /* Send RPL_MYINFO: */
 
@@ -105,16 +105,16 @@ int handle_NICK(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_use
     chilog(TRACE, "NICK recieved! user: %s nick: %s registered: %d", user->username, user->nickname, user->is_registered);
     char nick[MAX_NICK_LEN + 1];
     struct chirc_user_t *found_user;
-    struct chirc_message_t *reply_msg;
+    struct chirc_message_t reply_msg;
     int error = 0;
 
     if (msg->nparams < 1)  // No nickname given
     {
-        chirc_message_construct(reply_msg, ctx->server_name,
+        chirc_message_construct(&reply_msg, ctx->server_name,
                                 ERR_NONICKNAMEGIVEN);
-        chirc_message_add_parameter(reply_msg, user->nickname, false);
-        chirc_message_add_parameter(reply_msg, ":No nickname given", false);
-        error = send_message(reply_msg, user);
+        chirc_message_add_parameter(&reply_msg, user->nickname, false);
+        chirc_message_add_parameter(&reply_msg, ":No nickname given", false);
+        error = send_message(&reply_msg, user);
         return error;
     }
 
@@ -124,13 +124,13 @@ int handle_NICK(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_use
 
     if (found_user)  // Nickname already in use
     {
-        chirc_message_construct(reply_msg, ctx->server_name,
+        chirc_message_construct(&reply_msg, ctx->server_name,
                                 ERR_NICKNAMEINUSE);
-        chirc_message_add_parameter(reply_msg, user->nickname, false);
-        chirc_message_add_parameter(reply_msg, nick, false);
-        chirc_message_add_parameter(reply_msg, ":Nickname is already in use",
+        chirc_message_add_parameter(&reply_msg, user->nickname, false);
+        chirc_message_add_parameter(&reply_msg, nick, false);
+        chirc_message_add_parameter(&reply_msg, ":Nickname is already in use",
                                     false);
-        error = send_message(reply_msg, user);
+        error = send_message(&reply_msg, user);
     }
     else if (user->is_registered)
     {
@@ -158,17 +158,17 @@ int handle_USER(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_use
 {
     chilog(TRACE, "USER recieved! user: %s nick: %s registered: %d", user->username, user->nickname, user->is_registered);
     char user_buffer[MAX_MSG_LEN] = {0};
-    struct chirc_message_t *reply_msg;
+    struct chirc_message_t reply_msg;
     int error = 0;
 
     if (msg->nparams < 4)  // Not enough parameters
     {
-        chirc_message_construct(reply_msg, ctx->server_name,
+        chirc_message_construct(&reply_msg, ctx->server_name,
                                 ERR_NEEDMOREPARAMS);
-        chirc_message_add_parameter(reply_msg, user->nickname, false);
-        chirc_message_add_parameter(reply_msg, msg->cmd, false);
-        chirc_message_add_parameter(reply_msg, ":Not enough parameters", false);
-        error = send_message(reply_msg, user);
+        chirc_message_add_parameter(&reply_msg, user->nickname, false);
+        chirc_message_add_parameter(&reply_msg, msg->cmd, false);
+        chirc_message_add_parameter(&reply_msg, ":Not enough parameters", false);
+        error = send_message(&reply_msg, user);
         return error;
     }
 
