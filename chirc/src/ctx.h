@@ -12,6 +12,7 @@ struct ctx_t
 {
     struct chirc_user_t *users;
     struct chirc_channel_t *channels;
+    char *server_name;
     pthread_mutex_t users_lock;
     pthread_mutex_t channels_lock;
 };

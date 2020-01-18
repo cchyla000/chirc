@@ -41,9 +41,33 @@ int chirc_message_from_string(struct chirc_message_t *msg, char *s)
     return (rest - s); 
 }
 
-int chirc_message_to_string(struct chirc_message_t *msg, char **s)
+int chirc_message_to_string(struct chirc_message_t *msg, char *s)
 {
+    char *tmp = *s;
+    int i;
+ 
+    if (msg->prefix)
+    {
+        *tmp = ':';
+        tmp++;
+        strcpy(tmp, msg->prefix);
+        tmp += strlen(msg->prefix);
+        tmp++;  // Whitespace 
+    }
+
+    strcpy(tmp, msg->cmd);
+    tmp += strlen(msg->cmd); 
+
+    for (i = 0; i < msg->nparams; i++)
+    {
+        tmp++;  // Whitespace
+        strcpy(tmp, msg->params[i]);
+        tmp += strlen(msg->params[i]);
+    }    
+
+    strcpy(tmp, "\r\n"); 
     return 0;
+    
 }
 
 int chirc_message_construct(struct chirc_message_t *msg, char *prefix, char *cmd)
@@ -66,6 +90,27 @@ int chirc_message_add_parameter(struct chirc_message_t *msg, char *param, bool l
     {
         return 1;
     }
+}
+
+int chirc_message_add_nickname_parameter(struct chirc_message_t *msg, char *nick)
+{
+    if (msg->nparams < MAX_PARAMS)
+    {
+        if (*nick == '\0')  // No nickname yet, use wildcard
+        {
+            msg->params[msg->nparams] = "*";
+        }
+        else
+        {
+            msg->params[msg->nparams] = nick;
+        }
+        msg->nparams++;
+    }
+    else 
+    {
+        return 1;
+    }
+
 }
 
 int chirc_message_destroy(struct chirc_message_t *msg)

@@ -63,7 +63,7 @@
 int main(int argc, char *argv[])
 {
     int opt;
-    char *port = NULL, *passwd = NULL, *servername = NULL, *network_file = NULL;
+    char *port = NULL, *passwd = NULL, *server_name = NULL, *network_file = NULL;
     int verbosity = 0;
 
     while ((opt = getopt(argc, argv, "p:o:s:n:vqh")) != -1)
@@ -76,7 +76,7 @@ int main(int argc, char *argv[])
             passwd = strdup(optarg);
             break;
         case 's':
-            servername = strdup(optarg);
+            server_name = strdup(optarg);
             break;
         case 'n':
             if (access(optarg, R_OK) == -1)
@@ -107,7 +107,7 @@ int main(int argc, char *argv[])
         exit(-1);
     }
 
-    if (network_file && !servername)
+    if (network_file && !server_name)
     {
         fprintf(stderr, "ERROR: If specifying a network file, you must also specify a server name.\n");
         exit(-1);
@@ -138,6 +138,7 @@ int main(int argc, char *argv[])
     struct ctx_t *ctx = calloc(1, sizeof(struct ctx_t*));
     ctx->users = NULL;
     ctx->channels = NULL;
+    ctx->server_name = server_name;
     pthread_mutex_init(&ctx->users_lock, NULL);
     pthread_mutex_init(&ctx->channels_lock, NULL);
 
