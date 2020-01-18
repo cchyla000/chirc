@@ -135,7 +135,7 @@ int main(int argc, char *argv[])
 
     /* ADDED: Malloc the server context and initialize its values,
      * which includes initializing the mutex.*/
-    struct ctx_t *ctx = calloc(1, sizeof(struct ctx_t*));
+    struct ctx_t *ctx = calloc(1, sizeof(struct ctx_t));
     ctx->users = NULL;
     ctx->channels = NULL;
     ctx->server_name = server_name;

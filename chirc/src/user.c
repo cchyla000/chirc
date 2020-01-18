@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
+#include <stdbool.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -14,6 +15,7 @@
 
 #include "user.h"
 #include "handler.h"
+#include "log.h"
 
 /*
  * Worst case scenario is if we cannot parse a first message of
@@ -56,17 +58,17 @@ struct handler_entry handlers[] = {
 
 int num_handlers = sizeof(handlers) / sizeof(struct handler_entry);
 
-/* 
+/*
  * Set struct user hostname field using getnameinfo(); if
- * hostname can't be resolved or is greater than 63 characters 
- * in length, then use the numeric form of the hostname. 
+ * hostname can't be resolved or is greater than 63 characters
+ * in length, then use the numeric form of the hostname.
 */
 static int set_host_name(struct chirc_user_t *user, struct worker_args *wa)
 {
-    char buffer[NI_MAXHOST];  
+    char buffer[NI_MAXHOST];
     int error;
- 
-    error = getnameinfo(wa->client_addr, sizeof(struct sockaddr_storage), 
+
+    error = getnameinfo(wa->client_addr, sizeof(struct sockaddr_storage),
                           buffer, NI_MAXHOST, NULL, 0, 0);
     if (error)
     {
@@ -77,7 +79,7 @@ static int set_host_name(struct chirc_user_t *user, struct worker_args *wa)
     }
     else if (strlen(buffer) > MAX_HOST_LEN)
     {
-        error = getnameinfo(wa->client_addr, sizeof(struct sockaddr_storage), 
+        error = getnameinfo(wa->client_addr, sizeof(struct sockaddr_storage),
                               buffer, NI_MAXHOST, NULL, 0, NI_NUMERICHOST);
         if (error)
         {
@@ -88,7 +90,7 @@ static int set_host_name(struct chirc_user_t *user, struct worker_args *wa)
         }
     }
 
-    strncpy(user->hostname, buffer, (MAX_HOST_LEN + 1)); 
+    strncpy(user->hostname, buffer, (MAX_HOST_LEN + 1));
     return 0;
 }
 
@@ -109,13 +111,15 @@ void *service_user(void *args)
     ctx = wa->ctx;
 
     /* Create user struct */
-    user = calloc(1, sizeof(struct chirc_user_t *));
+    user = calloc(1, sizeof(struct chirc_user_t));
     memset(user->nickname, 0, MAX_NICK_LEN);
-    user->username = NULL;
+    // user->username = NULL;
+    memset(user->username, 0, MAX_USER_LEN);
     user->socket = client_socket;
     user->channels = NULL;
     user->is_registered = false;
-    pthread_mutex_init(&user->lock, NULL); 
+    chilog(TRACE, "ln 120: %d", user->is_registered);
+    pthread_mutex_init(&user->lock, NULL);
     set_host_name(user, wa);
     int error;
 
@@ -130,9 +134,9 @@ void *service_user(void *args)
 
     while(1)
     {
+        chilog(TRACE, "ln 136: %d", user->is_registered);
         nbytes = recv(client_socket, &buffer[bytes_in_buffer],
                      (BUFFER_LEN - bytes_in_buffer), 0);
-
         if (nbytes == 0)
         {
             close(client_socket);
@@ -140,6 +144,7 @@ void *service_user(void *args)
             free(user);
             pthread_exit(NULL);
         }
+        chilog(TRACE, "ln 146: %d", user->is_registered);
         bytes_in_buffer += nbytes;
 
         tmp = buffer;

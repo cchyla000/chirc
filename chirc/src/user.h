@@ -1,17 +1,19 @@
 #ifndef CHIRC_USER_H
 #define CHIRC_USER_H
 
+#include <stdbool.h>
 #include "../lib/uthash.h"
 #include "message.h"
 #include "channel.h"
 #include "ctx.h"
 
-#define MAX_NICK_LEN 9 
+#define MAX_NICK_LEN 9
 #define MAX_HOST_LEN 63
+#define MAX_USER_LEN 512
 
 struct chirc_user_t {
     char nickname[MAX_NICK_LEN + 1];
-    char *username;
+    char username[MAX_USER_LEN + 1];
     char hostname[MAX_HOST_LEN + 1];
     int socket;
     struct chirc_channel_t *channels; // hash of channels user is a part of
