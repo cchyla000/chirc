@@ -13,11 +13,17 @@
 #define RPL_YOURHOST "002"
 #define RPL_CREATED "003"
 #define RPL_MYINFO "004"
+#define RPL_LUSERCLIENT "251"
+#define RPL_LUSEROP "252"
+#define RPL_LUSERUNKNOWN "253"
+#define RPL_LUSERCHANNELS "254"
+#define RPL_LUSERME "255"
 
 #define ERR_NOSUCHNICK "401"
 #define ERR_NORECIPIENT "411"
 #define ERR_NOTEXTTOSEND "412"
 #define ERR_UNKNOWNCOMMAND "421"
+#define ERR_NOMOTD "422"
 #define ERR_NONICKNAMEGIVEN "431"
 #define ERR_NICKNAMEINUSE "433"
 #define ERR_NOTREGISTERED "451"
@@ -109,6 +115,78 @@ static int send_welcome_messages(struct ctx_t *ctx, struct chirc_user_t *user)
     {
         return error;
     }
+    chirc_message_clear(&msg);
+
+    /* Send RPL_LUSERCLIENT */    
+    chirc_message_construct(&msg, ctx->server_name, RPL_LUSERCLIENT);
+    chirc_message_add_parameter(&msg, user->nickname, false);
+    chirc_message_add_parameter(&msg, ":There are 1 users and 0 services"
+                                " on 1 servers", false);
+    error = send_message(&msg, user);
+    if (error)
+    {
+        return error;
+    }
+    chirc_message_clear(&msg);
+
+    /* Send RPL_LUSEROP */
+    chirc_message_construct(&msg, ctx->server_name, RPL_LUSEROP);
+    chirc_message_add_parameter(&msg, user->nickname, false);
+    chirc_message_add_parameter(&msg, "0", false);
+    chirc_message_add_parameter(&msg, ":operator(s) online", false);
+    error = send_message(&msg, user);
+    if (error)
+    {
+        return error;
+    }
+    chirc_message_clear(&msg);
+
+    /* Send RPL_LUSERUNKNOWN */
+    chirc_message_construct(&msg, ctx->server_name, RPL_LUSERUNKNOWN);
+    chirc_message_add_parameter(&msg, user->nickname, false);
+    chirc_message_add_parameter(&msg, "0", false);
+    chirc_message_add_parameter(&msg, ":unknown connection(s)", false);
+    error = send_message(&msg, user);
+    if (error)
+    {
+        return error;
+    }
+    chirc_message_clear(&msg);
+
+    /* Send RPL_LUSERCHANNELS */
+    chirc_message_construct(&msg, ctx->server_name, RPL_LUSERCHANNELS);
+    chirc_message_add_parameter(&msg, user->nickname, false);
+    chirc_message_add_parameter(&msg, "0", false);
+    chirc_message_add_parameter(&msg, ":channels formed", false);
+    error = send_message(&msg, user);
+    if (error)
+    {
+        return error;
+    }
+    chirc_message_clear(&msg);
+
+    /* Send RPL_LUSERME */
+    chirc_message_construct(&msg, ctx->server_name, RPL_LUSERME);
+    chirc_message_add_parameter(&msg, user->nickname, false);
+    chirc_message_add_parameter(&msg, ":I have 1 clients and 1 servers", false);
+    error = send_message(&msg, user);
+    if (error)
+    {
+        return error;
+    }
+    chirc_message_clear(&msg);
+
+    /* Send MOTD */
+    chirc_message_construct(&msg, ctx->server_name, ERR_NOMOTD);
+    chirc_message_add_parameter(&msg, user->nickname, false);
+    chirc_message_add_parameter(&msg, ":MOTD File is missing", false);
+    error = send_message(&msg, user);
+    if (error)
+    {
+        return error;
+    }
+    chirc_message_clear(&msg);
+
 
     return 0;
 }
