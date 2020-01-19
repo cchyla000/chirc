@@ -46,13 +46,14 @@ int chirc_message_to_string(struct chirc_message_t *msg, char *s)
     char *tmp = s;
     int i;
  
-    if (msg->prefix)
+    if (*msg->prefix)
     {
         *tmp = ':';
         tmp++;
         strcpy(tmp, msg->prefix);
         tmp += strlen(msg->prefix);
-        tmp++;  // Whitespace 
+        *tmp = ' ';   
+        tmp++;
     }
 
     strcpy(tmp, msg->cmd);
@@ -60,7 +61,8 @@ int chirc_message_to_string(struct chirc_message_t *msg, char *s)
 
     for (i = 0; i < msg->nparams; i++)
     {
-        tmp++;  // Whitespace
+        *tmp = ' ';  
+        tmp++;
         strcpy(tmp, msg->params[i]);
         tmp += strlen(msg->params[i]);
     }    
@@ -99,8 +101,9 @@ int chirc_message_add_parameter(struct chirc_message_t *msg, char *param, bool l
     }
 }
 
-int chirc_message_destroy(struct chirc_message_t *msg)
+int chirc_message_clear(struct chirc_message_t *msg)
 {
     memset(msg, 0, sizeof (struct chirc_message_t));
+    return 0;
 }
 

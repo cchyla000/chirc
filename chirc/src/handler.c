@@ -57,18 +57,19 @@ static int send_welcome_messages(struct ctx_t *ctx, struct chirc_user_t *user)
     struct chirc_message_t msg;
     int error;
 
+    chirc_message_clear (&msg);
+
     /* Send RPL_WELCOME: */
     chirc_message_construct(&msg, ctx->server_name, RPL_WELCOME);
     chirc_message_add_parameter(&msg, user->nickname, false);
-    sprintf(param_buffer, ":Welcome to the Internet Relay Network %s!%s@%s",
-            user->nickname, user->username, user->hostname);
+    sprintf(param_buffer, ":Welcome to the Internet Relay Network %s!%s@%s", user->nickname, user->username, user->hostname);
     chirc_message_add_parameter(&msg, param_buffer, false);
     error = send_message(&msg, user);
     if (error)
     {
         return error;
     }
-    chirc_message_destroy(&msg);
+    chirc_message_clear(&msg);
 
     /* Send RPL_YOURHOST: */
     chirc_message_construct(&msg, ctx->server_name, RPL_YOURHOST);
@@ -81,7 +82,7 @@ static int send_welcome_messages(struct ctx_t *ctx, struct chirc_user_t *user)
     {
         return error;
     }
-    chirc_message_destroy(&msg);
+    chirc_message_clear(&msg);
 
     /* Send RPL_CREATED: */
     chirc_message_construct(&msg, ctx->server_name, RPL_CREATED);
@@ -92,7 +93,7 @@ static int send_welcome_messages(struct ctx_t *ctx, struct chirc_user_t *user)
     {
         return error;
     }
-    chirc_message_destroy(&msg);
+    chirc_message_clear(&msg);
 
     /* Send RPL_MYINFO: */
 
@@ -106,6 +107,7 @@ int handle_NICK(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_use
     char nick[MAX_NICK_LEN + 1];
     struct chirc_user_t *found_user;
     struct chirc_message_t reply_msg;
+    chirc_message_clear (&reply_msg);
     int error = 0;
 
     if (msg->nparams < 1)  // No nickname given
@@ -159,6 +161,7 @@ int handle_USER(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_use
     chilog(TRACE, "USER recieved! user: %s nick: %s registered: %d", user->username, user->nickname, user->is_registered);
     char user_buffer[MAX_MSG_LEN] = {0};
     struct chirc_message_t reply_msg;
+    chirc_message_clear (&reply_msg);
     int error = 0;
 
     if (msg->nparams < 4)  // Not enough parameters
