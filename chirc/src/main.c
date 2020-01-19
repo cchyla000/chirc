@@ -138,7 +138,7 @@ int main(int argc, char *argv[])
     struct ctx_t *ctx = calloc(1, sizeof(struct ctx_t));
     ctx->users = NULL;
     ctx->channels = NULL;
-    ctx->server_name = server_name;
+
     pthread_mutex_init(&ctx->users_lock, NULL);
     pthread_mutex_init(&ctx->channels_lock, NULL);
 
@@ -153,6 +153,7 @@ int main(int argc, char *argv[])
 
     int server_socket;
     int client_socket;
+    int error;
     pthread_t worker_thread;
     struct addrinfo hints, *res, *p;
     struct sockaddr_storage *client_addr;
@@ -200,6 +201,15 @@ int main(int argc, char *argv[])
             continue;
         }
 
+        /* Get server hostname */
+        error = getnameinfo(p, sizeof(struct sockaddr_storage), 
+                            ctx->server_name, NI_MAXHOST, NULL, 0, 0); 
+        if (error)
+        {
+            perror("Failed to resolve server hostname");
+            close(server_socket);
+            continue;
+        }
         break;
     }
 
@@ -211,6 +221,10 @@ int main(int argc, char *argv[])
         pthread_exit(NULL);
     }
 
+    time_t t = time(NULL);
+    struct tm tm = *localtime(&t);
+    sprintf(ctx->date_created, "%d-%02d-%02d %02d:%02d:%02d", tm.tm_year + 1900,
+            tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
     while (1)
     {
         client_addr = calloc(1, sin_size);

@@ -87,7 +87,9 @@ static int send_welcome_messages(struct ctx_t *ctx, struct chirc_user_t *user)
     /* Send RPL_CREATED: */
     chirc_message_construct(&msg, ctx->server_name, RPL_CREATED);
     chirc_message_add_parameter(&msg, user->nickname, false);
-    sprintf(param_buffer, ":This server was created %s", "NEED TO RECORD TIME");
+    sprintf(param_buffer, ":This server was created %s", 
+            ctx->date_created);
+    chirc_message_add_parameter(&msg, param_buffer, false);
     error = send_message(&msg, user);
     if (error)
     {
@@ -96,7 +98,17 @@ static int send_welcome_messages(struct ctx_t *ctx, struct chirc_user_t *user)
     chirc_message_clear(&msg);
 
     /* Send RPL_MYINFO: */
-
+    chirc_message_construct(&msg, ctx->server_name, RPL_MYINFO);
+    chirc_message_add_parameter(&msg, user->nickname, false);
+    chirc_message_add_parameter(&msg, ctx->server_name, false);
+    chirc_message_add_parameter(&msg, IRC_VERSION, false);
+    chirc_message_add_parameter(&msg, "ao", false);
+    chirc_message_add_parameter(&msg, "mtov", false);
+    error = send_message(&msg, user);
+    if (error)
+    {
+        return error;
+    }
 
     return 0;
 }
