@@ -19,7 +19,7 @@ int chirc_message_from_string(struct chirc_message_t *msg, char *s)
     }
 
     /* Parse command */
-    token = strtok_r(rest, " ", &rest);
+    token = strtok_r(rest, " \r", &rest);
     msg->cmd = token;    
 
     /* Continue parsing until MAX_PARAMS exceeded,  

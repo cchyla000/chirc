@@ -163,7 +163,7 @@ void *service_user(void *args)
                 if (!strcmp(handlers[i].name, cmd))
                 {
                     error = handlers[i].func(ctx, &msg, user);
-                    if (error)
+                    if (error == -1)
                     {
                         close(client_socket);
                         destroy_user_and_exit(user, wa);

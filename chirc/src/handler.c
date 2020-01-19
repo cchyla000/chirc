@@ -190,7 +190,31 @@ static int send_welcome_messages(struct ctx_t *ctx, struct chirc_user_t *user)
 
     return 0;
 }
+static int handle_not_registered(struct ctx_t *ctx, struct chirc_user_t *user)
+{
+    int error;
+    struct chirc_message_t reply_msg;
+    chirc_message_clear(&reply_msg);
 
+    if (!user->is_registered)
+    {
+        chirc_message_construct(&reply_msg, ctx->server_name,
+                                ERR_NOTREGISTERED);
+        chirc_message_add_parameter(&reply_msg, user->nickname, false);
+        chirc_message_add_parameter(&reply_msg, ":You have not registered", 
+                                    false);
+        error = send_message(&reply_msg, user);
+        if (error)
+        {
+            return -1;
+        }
+        else
+        {
+            return 1;
+        }
+    }
+    return 0;
+}
 int handle_NICK(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_user_t *user)
 {
     chilog(TRACE, "NICK recieved! user: %s nick: %s registered: %d", user->username, user->nickname, user->is_registered);
@@ -295,55 +319,110 @@ int handle_QUIT(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_use
 
 int handle_PRIVMSG(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_user_t *user)
 {
-  return 0;
+    int not_registered = handle_not_registered(ctx, user);
+    if (not_registered)
+    {
+        return not_registered;
+    } 
+    return 0;
 }
 
 int handle_NOTICE(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_user_t *user)
 {
-  return 0;
+    int not_registered = handle_not_registered(ctx, user);
+    if (not_registered)
+    {
+        return not_registered;
+    } 
+    return 0;
 }
 
 int handle_PING(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_user_t *user)
 {
-  return 0;
+    int not_registered = handle_not_registered(ctx, user);
+    if (not_registered)
+    {
+        return not_registered;
+    } 
+    return 0;
 }
 
 int handle_PONG(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_user_t *user)
 {
-  return 0;
+    int not_registered = handle_not_registered(ctx, user);
+    if (not_registered)
+    {
+        return not_registered;
+    } 
+    return 0;
 }
 
 int handle_LUSERS(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_user_t *user)
 {
-  return 0;
+    int not_registered = handle_not_registered(ctx, user);
+    if (not_registered)
+    {
+        return not_registered;
+    } 
+    return 0;
 }
 
 int handle_WHOIS(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_user_t *user)
 {
-  return 0;
+    int not_registered = handle_not_registered(ctx, user);
+    if (not_registered)
+    {
+        return not_registered;
+    } 
+    return 0;
 }
 
 int handle_JOIN(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_user_t *user)
 {
-  return 0;
+    int not_registered = handle_not_registered(ctx, user);
+    if (not_registered)
+    {
+        return not_registered;
+    } 
+    return 0;
 }
 
 int handle_PART(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_user_t *user)
 {
-  return 0;
+    int not_registered = handle_not_registered(ctx, user);
+    if (not_registered)
+    {
+        return not_registered;
+    } 
+    return 0;
 }
 
 int handle_MODE(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_user_t *user)
 {
-  return 0;
+    int not_registered = handle_not_registered(ctx, user);
+    if (not_registered)
+    {
+        return not_registered;
+    } 
+    return 0;
 }
 
 int handle_LIST(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_user_t *user)
 {
-  return 0;
+    int not_registered = handle_not_registered(ctx, user);
+    if (not_registered)
+    {
+        return not_registered;
+    } 
+    return 0;
 }
 
 int handle_OPER(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_user_t *user)
 {
-  return 0;
+    int not_registered = handle_not_registered(ctx, user);
+    if (not_registered)
+    {
+        return not_registered;
+    } 
+    return 0;
 }
