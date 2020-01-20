@@ -185,8 +185,7 @@ void *service_user(void *args)
                 chirc_message_add_parameter(&reply_msg, prefix_buffer, false);
                 int nbytes;
                 char to_send[MAX_MSG_LEN + 1] = {0};
-                chirc_message_to_string(msg, to_send);
-
+                chirc_message_to_string(&reply_msg, to_send);
                 pthread_mutex_lock(&user->lock);
                 nbytes = send(user->socket, to_send, strlen(to_send), 0);
                 pthread_mutex_unlock(&user->lock);
