@@ -371,7 +371,7 @@ int handle_PRIVMSG(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_
     char recipient_nick[MAX_NICK_LEN + 1];
     strcpy(recipient_nick, msg->params[0]);
     pthread_mutex_lock(&ctx->users_lock);
-    HASH_FIND_STR(ctx->users, nick, recipient);
+    HASH_FIND_STR(ctx->users, recipient_nick, recipient);
     pthread_mutex_unlock(&ctx->users_lock);
     if (recipient)
     {
