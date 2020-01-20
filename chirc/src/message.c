@@ -55,7 +55,7 @@ int chirc_message_to_string(struct chirc_message_t *msg, char *s)
     char *tmp = s;
     int i;
  
-    if (*msg->prefix)
+    if (msg->prefix != NULL)
     {
         *tmp = ':';
         tmp++;
@@ -65,8 +65,11 @@ int chirc_message_to_string(struct chirc_message_t *msg, char *s)
         tmp++;
     }
 
-    strcpy(tmp, msg->cmd);
-    tmp += strlen(msg->cmd); 
+    if (msg->cmd != NULL)
+    {
+        strcpy(tmp, msg->cmd);
+        tmp += strlen(msg->cmd); 
+    }
 
     for (i = 0; i < (msg->nparams - 1); i++)
     {
