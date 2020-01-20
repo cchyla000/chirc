@@ -538,10 +538,10 @@ int handle_JOIN(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_use
            */
           struct chirc_user_t* user_in_channel;
           pthread_mutex_lock(&channel->lock);
-          HASH_FIND_STR(channel->users, user->nick, user_in_channel);
+          HASH_FIND_STR(channel->users, user->nickname, user_in_channel);
           pthread_mutex_unlock(&channel->lock);
           if (user_in_channel) {
-            return 0
+            return 0;
           }
       }
       else
