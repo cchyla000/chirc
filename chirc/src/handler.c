@@ -409,7 +409,8 @@ int handle_PRIVMSG(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_
     pthread_mutex_unlock(&ctx->users_lock);
     if (recipient)
     {
-        chirc_message_construct(&reply_msg, user->hostname, "PRIVMSG");
+        sprintf(buffer, "%s!%s@%s", user->nickname, user->username, user->hostname);
+        chirc_message_construct(&reply_msg, buffer, "PRIVMSG");
         for (int i = 0; i < msg->nparams - 1; i++)
         {
             chirc_message_add_parameter(&reply_msg, msg->params[i], false);
