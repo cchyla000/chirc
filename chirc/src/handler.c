@@ -447,7 +447,8 @@ int handle_NOTICE(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_u
   }
   struct chirc_message_t reply_msg;
   if (msg->nparams == 0 || msg->nparams == 1)
-    return 1
+  {
+    return 1;
   }
   struct chirc_user_t *recipient;
   char buffer[MAX_MSG_LEN + 1] = {0};
