@@ -410,7 +410,7 @@ int handle_PRIVMSG(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_
     if (recipient)
     {
         sprintf(buffer, "%s!%s@%s", user->nickname, user->username, user->hostname);
-        chirc_message_construct(&reply_msg, buffer, "PRIVMSG");
+        chirc_message_construct(&reply_msg, buffer, msg->cmd);
         for (int i = 0; i < msg->nparams - 1; i++)
         {
             chirc_message_add_parameter(&reply_msg, msg->params[i], false);
@@ -419,17 +419,28 @@ int handle_PRIVMSG(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_
         reply_msg.longlast = msg->longlast;
         send_message(&reply_msg, recipient);
     }
+    else
+    {
+        chirc_message_construct(&reply_msg, ctx->server_name, ERR_WASNOSUCHNICK);
+        chirc_message_add_parameter(&reply_msg, user->nickname, false);
+        sprintf(buffer, "%s :There was no such nickname", recipient_nick);
+        chirc_message_add_parameter(&reply_msg, buffer, false);
+        error = send_message(&reply_msg, user);
+        if (error)
+        {
+            return -1;
+        }
+        else
+        {
+            return 1;
+        }
+    }
     return 0;
 }
 
 int handle_NOTICE(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_user_t *user)
 {
-    int error = handle_not_registered(ctx, user);
-    if (error)
-    {
-        return error;
-    }
-    return 0;
+    return handle_PRIVMSG(ctx, msg, user);
 }
 
 int handle_PING(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_user_t *user)
