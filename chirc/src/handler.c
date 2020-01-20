@@ -293,7 +293,7 @@ int handle_NICK(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_use
         strcpy(user->nickname, nick);
         HASH_ADD_STR(ctx->users, nickname, user);
         pthread_mutex_unlock(&user->lock);
-        pthread_mutex_unlock(&ctx->users_lock);        
+        pthread_mutex_unlock(&ctx->users_lock);
     }
     else  // User not registered
     {
@@ -361,7 +361,7 @@ int handle_QUIT(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_use
 int handle_PRIVMSG(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_user_t *user)
 {
     int error;
-    if ((error = handle_not_registered(ctx, user))) 
+    if ((error = handle_not_registered(ctx, user)))
     {
         return error;
     }
@@ -375,7 +375,7 @@ int handle_PRIVMSG(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_
     pthread_mutex_unlock(&ctx->users_lock);
     if (recipient)
     {
-        chirc_message_construct(&reply_msg, user->hostname, PRIVMSG);
+        chirc_message_construct(&reply_msg, user->hostname, "PRIVMSG");
         for (int i = 0; i < msg->nparams; i++)
         {
             chirc_message_add_parameter(&reply_msg, msg->params[0], false);
