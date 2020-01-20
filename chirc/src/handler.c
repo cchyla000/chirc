@@ -289,7 +289,9 @@ int handle_NICK(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_use
     {
         pthread_mutex_lock(&ctx->users_lock);
         pthread_mutex_lock(&user->lock);
+        HASH_DEL(ctx->users, user);
         strcpy(user->nickname, nick);
+        HASH_ADD_STR(ctx->users, nickname, user);
         pthread_mutex_unlock(&user->lock);
         pthread_mutex_unlock(&ctx->users_lock);        
     }
