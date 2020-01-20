@@ -22,7 +22,7 @@
 #define ERR_NOSUCHNICK "401"
 
 /* PING or PONG message missing the originator parameter: */
-#define ERR_NOORIGIN "409" 
+#define ERR_NOORIGIN "409"
 
 #define ERR_NORECIPIENT "411"
 
@@ -103,7 +103,7 @@ static int send_welcome_messages(struct ctx_t *ctx, struct chirc_user_t *user)
     /* Send RPL_CREATED: */
     chirc_message_construct(&msg, ctx->server_name, RPL_CREATED);
     chirc_message_add_parameter(&msg, user->nickname, false);
-    sprintf(param_buffer, ":This server was created %s", 
+    sprintf(param_buffer, ":This server was created %s",
             ctx->date_created);
     chirc_message_add_parameter(&msg, param_buffer, false);
     error = send_message(&msg, user);
@@ -127,7 +127,7 @@ static int send_welcome_messages(struct ctx_t *ctx, struct chirc_user_t *user)
     }
     chirc_message_clear(&msg);
 
-    /* Send RPL_LUSERCLIENT */    
+    /* Send RPL_LUSERCLIENT */
     chirc_message_construct(&msg, ctx->server_name, RPL_LUSERCLIENT);
     chirc_message_add_parameter(&msg, user->nickname, false);
     chirc_message_add_parameter(&msg, ":There are 1 users and 0 services"
@@ -211,7 +211,7 @@ static int handle_not_registered(struct ctx_t *ctx, struct chirc_user_t *user)
         chirc_message_construct(&reply_msg, ctx->server_name,
                                 ERR_NOTREGISTERED);
         chirc_message_add_parameter(&reply_msg, user->nickname, false);
-        chirc_message_add_parameter(&reply_msg, ":You have not registered", 
+        chirc_message_add_parameter(&reply_msg, ":You have not registered",
                                     false);
         error = send_message(&reply_msg, user);
         if (error)
@@ -226,8 +226,8 @@ static int handle_not_registered(struct ctx_t *ctx, struct chirc_user_t *user)
     return 0;
 }
 
-static int 
-handle_not_enough_parameters(struct ctx_t *ctx, struct chirc_message_t *msg, 
+static int
+handle_not_enough_parameters(struct ctx_t *ctx, struct chirc_message_t *msg,
                              struct chirc_user_t *user, int nparams)
 {
     struct chirc_message_t reply_msg;
@@ -238,7 +238,7 @@ handle_not_enough_parameters(struct ctx_t *ctx, struct chirc_message_t *msg,
                                 ERR_NEEDMOREPARAMS);
         chirc_message_add_parameter(&reply_msg, user->nickname, false);
         chirc_message_add_parameter(&reply_msg, msg->cmd, false);
-        chirc_message_add_parameter(&reply_msg, 
+        chirc_message_add_parameter(&reply_msg,
                                     ":Not enough parameters", false);
         error = send_message(&reply_msg, user);
         if (error)
@@ -308,7 +308,7 @@ int handle_NICK(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_use
     return error;
 }
 
-int handle_USER(struct ctx_t *ctx, struct chirc_message_t *msg, 
+int handle_USER(struct ctx_t *ctx, struct chirc_message_t *msg,
                 struct chirc_user_t *user)
 {
     chilog(TRACE, "USER recieved! user: %s nick: %s registered: %d", user->username, user->nickname, user->is_registered);
@@ -323,7 +323,7 @@ int handle_USER(struct ctx_t *ctx, struct chirc_message_t *msg,
     }
     else if (user->is_registered)
     {
-        chirc_message_construct(&reply_msg, ctx->server_name, 
+        chirc_message_construct(&reply_msg, ctx->server_name,
                                 ERR_ALREADYREGISTERED);
         chirc_message_add_parameter(&reply_msg, user->nickname, false);
         chirc_message_add_parameter(&reply_msg, ":Unauthorized command "
@@ -361,7 +361,25 @@ int handle_PRIVMSG(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_
         (error = handle_not_enough_parameters(ctx, msg, user, 2)))
     {
         return error;
-    } 
+    }
+    struct chirc_user_t *recipient;
+    struct chirc_message_t reply_msg;
+    char buffer[MAX_MSG_LEN + 1] = {0};
+    char recipient_nick[MAX_NICK_LEN + 1];
+    strcpy(recipient_nick, msg->params[0]);
+    pthread_mutex_lock(&ctx->users_lock);
+    HASH_FIND_STR(ctx->users, nick, recipient);
+    pthread_mutex_unlock(&ctx->users_lock);
+    if (recipient)
+    {
+        chirc_message_construct(&reply_msg, user->hostname, PRIVMSG);
+        for (int i = 0; i < msg->nparams; i++)
+        {
+            chirc_message_add_parameter(&reply_msg, msg->params[0], false);
+            reply_msg.longlast = msg->longlast;
+            send_message(&reply_msg, recipient);
+        }
+    }
     return 0;
 }
 
@@ -371,7 +389,7 @@ int handle_NOTICE(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_u
     if (error)
     {
         return error;
-    } 
+    }
     return 0;
 }
 
@@ -381,7 +399,7 @@ int handle_PING(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_use
     if (error)
     {
         return error;
-    } 
+    }
     return 0;
 }
 
@@ -391,7 +409,7 @@ int handle_PONG(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_use
     if (error)
     {
         return error;
-    } 
+    }
     return 0;
 }
 
@@ -401,7 +419,7 @@ int handle_LUSERS(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_u
     if (error)
     {
         return error;
-    } 
+    }
     return 0;
 }
 
@@ -411,7 +429,7 @@ int handle_WHOIS(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_us
     if (error)
     {
         return error;
-    } 
+    }
     return 0;
 }
 
@@ -421,7 +439,7 @@ int handle_JOIN(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_use
     if (error)
     {
         return error;
-    } 
+    }
     return 0;
 }
 
@@ -431,7 +449,7 @@ int handle_PART(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_use
     if (error)
     {
         return error;
-    } 
+    }
     return 0;
 }
 
@@ -441,7 +459,7 @@ int handle_MODE(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_use
     if (error)
     {
         return error;
-    } 
+    }
     return 0;
 }
 
@@ -451,7 +469,7 @@ int handle_LIST(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_use
     if (error)
     {
         return error;
-    } 
+    }
     return 0;
 }
 
@@ -461,6 +479,6 @@ int handle_OPER(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_use
     if (error)
     {
         return error;
-    } 
+    }
     return 0;
 }
