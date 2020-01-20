@@ -111,7 +111,8 @@ static int send_welcome_messages(struct ctx_t *ctx, struct chirc_user_t *user)
     /* Send RPL_LUSEROP */
     chirc_message_construct(&msg, ctx->server_name, RPL_LUSEROP);
     chirc_message_add_parameter(&msg, user->nickname, false);
-    chirc_message_add_parameter(&msg, "0 operator(s) online", true);
+    chirc_message_add_parameter(&msg, "0", false);
+    chirc_message_add_parameter(&msg, "operator(s) online", true);
     error = send_message(&msg, user);
     if (error)
     {
@@ -122,7 +123,8 @@ static int send_welcome_messages(struct ctx_t *ctx, struct chirc_user_t *user)
     /* Send RPL_LUSERUNKNOWN */
     chirc_message_construct(&msg, ctx->server_name, RPL_LUSERUNKNOWN);
     chirc_message_add_parameter(&msg, user->nickname, false);
-    chirc_message_add_parameter(&msg, "0 unknown connection(s)", true);
+    chirc_message_add_parameter(&msg, "0", false);
+    chirc_message_add_parameter(&msg, "unknown connection(s)", true);
     error = send_message(&msg, user);
     if (error)
     {
@@ -133,7 +135,8 @@ static int send_welcome_messages(struct ctx_t *ctx, struct chirc_user_t *user)
     /* Send RPL_LUSERCHANNELS */
     chirc_message_construct(&msg, ctx->server_name, RPL_LUSERCHANNELS);
     chirc_message_add_parameter(&msg, user->nickname, false);
-    chirc_message_add_parameter(&msg, "0 channels formed", true);
+    chirc_message_add_parameter(&msg, "0", false);
+    chirc_message_add_parameter(&msg, "channels formed", true);
     error = send_message(&msg, user);
     if (error)
     {
@@ -501,7 +504,8 @@ int handle_LUSERS(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_u
     /* Send RPL_LUSEROP */
     chirc_message_construct(&reply_msg, ctx->server_name, RPL_LUSEROP);
     chirc_message_add_parameter(&reply_msg, user->nickname, false);
-    chirc_message_add_parameter(&reply_msg, "0 operator(s) online", true);
+    chirc_message_add_parameter(&reply_msg, "0", false);
+    chirc_message_add_parameter(&reply_msg, "operator(s) online", true);
     error = send_message(&reply_msg, user);
     if (error)
     {
@@ -512,7 +516,8 @@ int handle_LUSERS(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_u
     /* Send RPL_LUSERUNKNOWN */
     chirc_message_construct(&reply_msg, ctx->server_name, RPL_LUSERUNKNOWN);
     chirc_message_add_parameter(&reply_msg, user->nickname, false);
-    chirc_message_add_parameter(&reply_msg, "0 unknown connection(s)", true);
+    chirc_message_add_parameter(&reply_msg, "0", false);
+    chirc_message_add_parameter(&reply_msg, "unknown connection(s)", true);
     error = send_message(&reply_msg, user);
     if (error)
     {
@@ -523,7 +528,8 @@ int handle_LUSERS(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_u
     /* Send RPL_LUSERCHANNELS */
     chirc_message_construct(&reply_msg, ctx->server_name, RPL_LUSERCHANNELS);
     chirc_message_add_parameter(&reply_msg, user->nickname, false);
-    chirc_message_add_parameter(&reply_msg, "0 channels formed", true);
+    chirc_message_add_parameter(&reply_msg, "0", false);
+    chirc_message_add_parameter(&reply_msg, "channels formed", true);
     error = send_message(&reply_msg, user);
     if (error)
     {
