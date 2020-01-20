@@ -79,7 +79,7 @@ static int send_welcome_messages(struct ctx_t *ctx, struct chirc_user_t *user)
     chirc_message_construct(&msg, ctx->server_name, RPL_WELCOME);
     chirc_message_add_parameter(&msg, user->nickname, false);
     sprintf(param_buffer, ":Welcome to the Internet Relay Network %s!%s@%s", user->nickname, user->username, user->hostname);
-    chirc_message_add_parameter(&msg, param_buffer, false);
+    chirc_message_add_parameter(&msg, param_buffer, true);
     error = send_message(&msg, user);
     if (error)
     {
@@ -92,7 +92,7 @@ static int send_welcome_messages(struct ctx_t *ctx, struct chirc_user_t *user)
     chirc_message_add_parameter(&msg, user->nickname, false);
     sprintf(param_buffer, ":Your host is %s, running version %s",
             ctx->server_name, IRC_VERSION);
-    chirc_message_add_parameter(&msg, param_buffer, false);
+    chirc_message_add_parameter(&msg, param_buffer, true);
     error = send_message(&msg, user);
     if (error)
     {
@@ -105,7 +105,7 @@ static int send_welcome_messages(struct ctx_t *ctx, struct chirc_user_t *user)
     chirc_message_add_parameter(&msg, user->nickname, false);
     sprintf(param_buffer, ":This server was created %s", 
             ctx->date_created);
-    chirc_message_add_parameter(&msg, param_buffer, false);
+    chirc_message_add_parameter(&msg, param_buffer, true);
     error = send_message(&msg, user);
     if (error)
     {
@@ -131,7 +131,7 @@ static int send_welcome_messages(struct ctx_t *ctx, struct chirc_user_t *user)
     chirc_message_construct(&msg, ctx->server_name, RPL_LUSERCLIENT);
     chirc_message_add_parameter(&msg, user->nickname, false);
     chirc_message_add_parameter(&msg, ":There are 1 users and 0 services"
-                                " on 1 servers", false);
+                                " on 1 servers", true);
     error = send_message(&msg, user);
     if (error)
     {
@@ -143,7 +143,7 @@ static int send_welcome_messages(struct ctx_t *ctx, struct chirc_user_t *user)
     chirc_message_construct(&msg, ctx->server_name, RPL_LUSEROP);
     chirc_message_add_parameter(&msg, user->nickname, false);
     chirc_message_add_parameter(&msg, "0", false);
-    chirc_message_add_parameter(&msg, ":operator(s) online", false);
+    chirc_message_add_parameter(&msg, ":operator(s) online", true);
     error = send_message(&msg, user);
     if (error)
     {
@@ -155,7 +155,7 @@ static int send_welcome_messages(struct ctx_t *ctx, struct chirc_user_t *user)
     chirc_message_construct(&msg, ctx->server_name, RPL_LUSERUNKNOWN);
     chirc_message_add_parameter(&msg, user->nickname, false);
     chirc_message_add_parameter(&msg, "0", false);
-    chirc_message_add_parameter(&msg, ":unknown connection(s)", false);
+    chirc_message_add_parameter(&msg, ":unknown connection(s)", true);
     error = send_message(&msg, user);
     if (error)
     {
@@ -167,7 +167,7 @@ static int send_welcome_messages(struct ctx_t *ctx, struct chirc_user_t *user)
     chirc_message_construct(&msg, ctx->server_name, RPL_LUSERCHANNELS);
     chirc_message_add_parameter(&msg, user->nickname, false);
     chirc_message_add_parameter(&msg, "0", false);
-    chirc_message_add_parameter(&msg, ":channels formed", false);
+    chirc_message_add_parameter(&msg, ":channels formed", true);
     error = send_message(&msg, user);
     if (error)
     {
@@ -178,7 +178,7 @@ static int send_welcome_messages(struct ctx_t *ctx, struct chirc_user_t *user)
     /* Send RPL_LUSERME */
     chirc_message_construct(&msg, ctx->server_name, RPL_LUSERME);
     chirc_message_add_parameter(&msg, user->nickname, false);
-    chirc_message_add_parameter(&msg, ":I have 1 clients and 1 servers", false);
+    chirc_message_add_parameter(&msg, ":I have 1 clients and 1 servers", true);
     error = send_message(&msg, user);
     if (error)
     {
@@ -189,7 +189,7 @@ static int send_welcome_messages(struct ctx_t *ctx, struct chirc_user_t *user)
     /* Send MOTD */
     chirc_message_construct(&msg, ctx->server_name, ERR_NOMOTD);
     chirc_message_add_parameter(&msg, user->nickname, false);
-    chirc_message_add_parameter(&msg, ":MOTD File is missing", false);
+    chirc_message_add_parameter(&msg, ":MOTD File is missing", true);
     error = send_message(&msg, user);
     if (error)
     {
@@ -212,7 +212,7 @@ static int handle_not_registered(struct ctx_t *ctx, struct chirc_user_t *user)
                                 ERR_NOTREGISTERED);
         chirc_message_add_parameter(&reply_msg, user->nickname, false);
         chirc_message_add_parameter(&reply_msg, ":You have not registered", 
-                                    false);
+                                    true);
         error = send_message(&reply_msg, user);
         if (error)
         {
@@ -239,7 +239,7 @@ handle_not_enough_parameters(struct ctx_t *ctx, struct chirc_message_t *msg,
         chirc_message_add_parameter(&reply_msg, user->nickname, false);
         chirc_message_add_parameter(&reply_msg, msg->cmd, false);
         chirc_message_add_parameter(&reply_msg, 
-                                    ":Not enough parameters", false);
+                                    ":Not enough parameters", true);
         error = send_message(&reply_msg, user);
         if (error)
         {
@@ -267,7 +267,7 @@ int handle_NICK(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_use
         chirc_message_construct(&reply_msg, ctx->server_name,
                                 ERR_NONICKNAMEGIVEN);
         chirc_message_add_parameter(&reply_msg, user->nickname, false);
-        chirc_message_add_parameter(&reply_msg, ":No nickname given", false);
+        chirc_message_add_parameter(&reply_msg, ":No nickname given", true);
         error = send_message(&reply_msg, user);
         return error;
     }
@@ -282,7 +282,7 @@ int handle_NICK(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_use
         chirc_message_add_parameter(&reply_msg, user->nickname, false);
         chirc_message_add_parameter(&reply_msg, nick, false);
         chirc_message_add_parameter(&reply_msg, ":Nickname is already in use",
-                                    false);
+                                    true);
         error = send_message(&reply_msg, user);
     }
     else if (user->is_registered)
@@ -331,7 +331,7 @@ int handle_USER(struct ctx_t *ctx, struct chirc_message_t *msg,
                                 ERR_ALREADYREGISTERED);
         chirc_message_add_parameter(&reply_msg, user->nickname, false);
         chirc_message_add_parameter(&reply_msg, ":Unauthorized command "
-                                    "(already registered)", false);
+                                    "(already registered)", true);
         error = send_message(&reply_msg, user);
     }
     else  // User not registered
@@ -355,7 +355,24 @@ int handle_USER(struct ctx_t *ctx, struct chirc_message_t *msg,
 
 int handle_QUIT(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_user_t *user)
 {
-  return 0;
+    int error;
+    struct chirc_message_t reply_msg;
+    chirc_message_clear (&reply_msg);
+    char param_buffer[MAX_MSG_LEN + 1] = {0};
+   
+    chirc_message_construct(&reply_msg, ctx->server_name, "ERROR");
+    if (msg->nparams < 1)
+    {
+        chirc_message_add_parameter(&reply_msg, "Closing Link: (Client Quit)", 
+                                    true);
+    }
+    else
+    {
+        sprintf(param_buffer, "Closing Link: (%s)", msg->params[0]);
+        chirc_message_add_parameter(&reply_msg, param_buffer, true);
+    }
+    error = send_message(&reply_msg, user);
+    return error;
 }
 
 int handle_PRIVMSG(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_user_t *user)
