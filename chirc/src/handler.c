@@ -288,8 +288,7 @@ int handle_NICK(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_use
     }
     else if (user->is_registered)
     {
-        chilog(TRACE, "I shouldn't be here");
-        // Iterate through all channels/ctx user list to update nick
+        
     }
     else  // User not registered
     {
@@ -357,8 +356,7 @@ int handle_QUIT(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_use
 int handle_PRIVMSG(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_user_t *user)
 {
     int error;
-    if ((error = handle_not_registered(ctx, user)) ||
-        (error = handle_not_enough_parameters(ctx, msg, user, 2)))
+    if ((error = handle_not_registered(ctx, user))) 
     {
         return error;
     } 

@@ -81,7 +81,7 @@ static int set_host_name(struct chirc_user_t *user, struct worker_args *wa)
     else if (strlen(buffer) > MAX_HOST_LEN)
     {
         error = getnameinfo(wa->client_addr, sizeof(struct sockaddr_storage),
-                              buffer, NI_MAXHOST, NULL, 0, NI_NUMERICHOST);
+                              user->hostname, MAX_HOST_LEN, NULL, 0, NI_NUMERICHOST);
         if (error)
         {
             close(user->socket);
@@ -90,8 +90,10 @@ static int set_host_name(struct chirc_user_t *user, struct worker_args *wa)
             pthread_exit(NULL);
         }
     }
-
-    strncpy(user->hostname, buffer, (MAX_HOST_LEN + 1));
+    else
+    {
+        strncpy(user->hostname, buffer, MAX_HOST_LEN);
+    }
     return 0;
 }
 

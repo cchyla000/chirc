@@ -160,6 +160,7 @@ int main(int argc, char *argv[])
     socklen_t sin_size = sizeof(struct sockaddr_storage);
     struct worker_args *wa;
     int yes = 1;
+    char server_name_buffer[NI_MAXHOST];
 
     memset(&hints, 0, sizeof hints);
     hints.ai_family = AF_UNSPEC;
@@ -203,12 +204,28 @@ int main(int argc, char *argv[])
 
         /* Get server hostname */
         error = getnameinfo(p, sizeof(struct sockaddr_storage), 
-                            ctx->server_name, NI_MAXHOST, NULL, 0, 0); 
+                            server_name_buffer, NI_MAXHOST, NULL, 0, 0); 
         if (error)
         {
             perror("Failed to resolve server hostname");
             close(server_socket);
             continue;
+        }
+        else if (strlen(server_name_buffer) > MAX_HOST_LEN)
+        {
+            error = getnameinfo(p, sizeof(struct sockaddr_storage),
+                                ctx->server_name, MAX_HOST_LEN, NULL,
+                                0, NI_NUMERICHOST);
+            if (error)
+            {
+                perror("Failed to resolve server hostname");
+                close(server_socket);
+                continue;
+            }
+        } 
+        else
+        {
+            strncpy(ctx->server_name, server_name_buffer, MAX_HOST_LEN);
         }
         break;
     }
