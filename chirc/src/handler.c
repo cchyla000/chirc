@@ -511,6 +511,7 @@ int handle_PONG(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_use
 
 int handle_LUSERS(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_user_t *user)
 {
+/*
     int error = handle_not_registered(ctx, user);
     if (error)
     {
@@ -523,7 +524,7 @@ int handle_LUSERS(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_u
     chirc_message_construct(&reply_msg, ctx->server_name, RPL_LUSERCLIENT);
     chirc_message_add_parameter(&reply_msg, user->nickname, false);
     sprintf(param_buffer, "There are %d users and %d services on %d servers", HASH_COUNT(ctx->users), 0, 1);
-
+*/
     return 0;
 }
 
