@@ -215,6 +215,34 @@ static int handle_not_registered(struct ctx_t *ctx, struct chirc_user_t *user)
     }
     return 0;
 }
+
+static int 
+handle_not_enough_parameters(struct ctx_t *ctx, struct chirc_message_t *msg, 
+                             struct chirc_user_t *user, int nparams)
+{
+    struct chirc_message_t reply_msg;
+    int error = 0;
+    if (msg->nparams < nparams)  // Not enough parameters
+    {
+        chirc_message_construct(&reply_msg, ctx->server_name,
+                                ERR_NEEDMOREPARAMS);
+        chirc_message_add_parameter(&reply_msg, user->nickname, false);
+        chirc_message_add_parameter(&reply_msg, msg->cmd, false);
+        chirc_message_add_parameter(&reply_msg, 
+                                    ":Not enough parameters", false);
+        error = send_message(&reply_msg, user);
+        if (error)
+        {
+            return -1;
+        }
+        else
+        {
+            return 1;
+        }
+    }
+    return error;
+}
+
 int handle_NICK(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_user_t *user)
 {
     chilog(TRACE, "NICK recieved! user: %s nick: %s registered: %d", user->username, user->nickname, user->is_registered);
@@ -270,7 +298,8 @@ int handle_NICK(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_use
     return error;
 }
 
-int handle_USER(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_user_t *user)
+int handle_USER(struct ctx_t *ctx, struct chirc_message_t *msg, 
+                struct chirc_user_t *user)
 {
     chilog(TRACE, "USER recieved! user: %s nick: %s registered: %d", user->username, user->nickname, user->is_registered);
     char user_buffer[MAX_MSG_LEN] = {0};
@@ -278,20 +307,18 @@ int handle_USER(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_use
     chirc_message_clear (&reply_msg);
     int error = 0;
 
-    if (msg->nparams < 4)  // Not enough parameters
+    if ((error = handle_not_enough_parameters(ctx, msg, user, 4)))
     {
-        chirc_message_construct(&reply_msg, ctx->server_name,
-                                ERR_NEEDMOREPARAMS);
-        chirc_message_add_parameter(&reply_msg, user->nickname, false);
-        chirc_message_add_parameter(&reply_msg, msg->cmd, false);
-        chirc_message_add_parameter(&reply_msg, ":Not enough parameters", false);
-        error = send_message(&reply_msg, user);
         return error;
     }
-
-    if (user->is_registered)
+    else if (user->is_registered)
     {
-        // Error, user already registered??
+        chirc_message_construct(&reply_msg, ctx->server_name, 
+                                ERR_ALREADYREGISTERED);
+        chirc_message_add_parameter(&reply_msg, user->nickname, false);
+        chirc_message_add_parameter(&reply_msg, ":Unauthorized command "
+                                    "(already registered)", false);
+        error = send_message(&reply_msg, user);
     }
     else  // User not registered
     {
@@ -319,110 +346,111 @@ int handle_QUIT(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_use
 
 int handle_PRIVMSG(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_user_t *user)
 {
-    int not_registered = handle_not_registered(ctx, user);
-    if (not_registered)
+    int error;
+    if ((error = handle_not_registered(ctx, user)) ||
+        (error = handle_not_enough_parameters(ctx, msg, user, 2)))
     {
-        return not_registered;
+        return error;
     } 
     return 0;
 }
 
 int handle_NOTICE(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_user_t *user)
 {
-    int not_registered = handle_not_registered(ctx, user);
-    if (not_registered)
+    int error = handle_not_registered(ctx, user);
+    if (error)
     {
-        return not_registered;
+        return error;
     } 
     return 0;
 }
 
 int handle_PING(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_user_t *user)
 {
-    int not_registered = handle_not_registered(ctx, user);
-    if (not_registered)
+    int error = handle_not_registered(ctx, user);
+    if (error)
     {
-        return not_registered;
+        return error;
     } 
     return 0;
 }
 
 int handle_PONG(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_user_t *user)
 {
-    int not_registered = handle_not_registered(ctx, user);
-    if (not_registered)
+    int error = handle_not_registered(ctx, user);
+    if (error)
     {
-        return not_registered;
+        return error;
     } 
     return 0;
 }
 
 int handle_LUSERS(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_user_t *user)
 {
-    int not_registered = handle_not_registered(ctx, user);
-    if (not_registered)
+    int error = handle_not_registered(ctx, user);
+    if (error)
     {
-        return not_registered;
+        return error;
     } 
     return 0;
 }
 
 int handle_WHOIS(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_user_t *user)
 {
-    int not_registered = handle_not_registered(ctx, user);
-    if (not_registered)
+    int error = handle_not_registered(ctx, user);
+    if (error)
     {
-        return not_registered;
+        return error;
     } 
     return 0;
 }
 
 int handle_JOIN(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_user_t *user)
 {
-    int not_registered = handle_not_registered(ctx, user);
-    if (not_registered)
+    int error = handle_not_registered(ctx, user);
+    if (error)
     {
-        return not_registered;
+        return error;
     } 
     return 0;
 }
 
 int handle_PART(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_user_t *user)
 {
-    int not_registered = handle_not_registered(ctx, user);
-    if (not_registered)
+    int error = handle_not_registered(ctx, user);
+    if (error)
     {
-        return not_registered;
+        return error;
     } 
     return 0;
 }
 
 int handle_MODE(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_user_t *user)
 {
-    int not_registered = handle_not_registered(ctx, user);
-    if (not_registered)
+    int error = handle_not_registered(ctx, user);
+    if (error)
     {
-        return not_registered;
+        return error;
     } 
     return 0;
 }
 
 int handle_LIST(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_user_t *user)
 {
-    int not_registered = handle_not_registered(ctx, user);
-    if (not_registered)
+    int error = handle_not_registered(ctx, user);
+    if (error)
     {
-        return not_registered;
+        return error;
     } 
     return 0;
 }
 
 int handle_OPER(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_user_t *user)
 {
-    int not_registered = handle_not_registered(ctx, user);
-    if (not_registered)
+    int error = handle_not_registered(ctx, user);
+    if (error)
     {
-        return not_registered;
+        return error;
     } 
     return 0;
 }
