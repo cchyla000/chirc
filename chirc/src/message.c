@@ -24,9 +24,18 @@ int chirc_message_from_string(struct chirc_message_t *msg, char *s)
 
     /* Continue parsing until MAX_PARAMS exceeded,  
        end of message, or no more parameters detected */
-    for (i=0; i < MAX_PARAMS && (*rest != '\n') && 
-        (token = strtok_r(rest, " \r", &rest)); i++)
+    for (i=0; i < MAX_PARAMS && (*rest != '\n'); i++)
     {
+        if (*rest == ':')  // Long parameter
+        {
+            rest++;
+            token = strtok_r(rest, "\r", &rest);
+            msg->longlast = true;
+        }
+        else 
+        {
+            token = strtok_r(rest, " \r", &rest);
+        }
         msg->params[i] = token;
     }
     
