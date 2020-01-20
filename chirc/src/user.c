@@ -181,7 +181,7 @@ void *service_user(void *args)
                 char prefix_buffer[MAX_MSG_LEN + 1] = {0};
                 chirc_message_construct(&reply_msg, ctx->server_name, ERR_UNKNOWNCOMMAND);
                 chirc_message_add_parameter(&reply_msg, user->nickname, false);
-                sprintf(buffer, "%s :Unknown command", cmd);
+                sprintf(prefix_buffer, "%s :Unknown command", cmd);
                 chirc_message_add_parameter(&reply_msg, prefix_buffer, false);
                 int nbytes;
                 char to_send[MAX_MSG_LEN + 1] = {0};
