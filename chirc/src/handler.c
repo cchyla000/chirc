@@ -378,7 +378,7 @@ int handle_PRIVMSG(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_
         chirc_message_construct(&reply_msg, user->hostname, "PRIVMSG");
         for (int i = 0; i < msg->nparams; i++)
         {
-            chirc_message_add_parameter(&reply_msg, msg->params[0], false);
+            chirc_message_add_parameter(&reply_msg, msg->params[i], false);
             reply_msg.longlast = msg->longlast;
             send_message(&reply_msg, recipient);
         }
