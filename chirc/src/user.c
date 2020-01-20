@@ -175,7 +175,7 @@ void *service_user(void *args)
                     break;
                 }
 
-            if(i == num_handlers)
+            if(i == num_handlers && user->is_registered)
             {
                 struct chirc_message_t reply_msg;
                 char prefix_buffer[MAX_MSG_LEN + 1] = {0};
