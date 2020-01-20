@@ -23,8 +23,11 @@ struct chirc_channel_t *create_channel(struct ctx_t *ctx, char *channel_name)
 int add_user_to_channel(struct chirc_channel_t *channel, struct chirc_user_t *user)
 {
     pthread_mutex_lock(&channel->lock);
+    pthread_mutex_lock(&user->lock);
     HASH_ADD_STR(channel->users, nickname, user);
     HASH_ADD_STR(user->channels, channel_name, channel);
+    channel->nusers++;
+    pthread_mutex_unlock(&user->lock);
     pthread_mutex_unlock(&channel->lock);
     return 0;
 }
@@ -32,8 +35,11 @@ int add_user_to_channel(struct chirc_channel_t *channel, struct chirc_user_t *us
 int remove_user_from_channel(struct chirc_channel_t *channel, struct chirc_user_t *user)
 {
     pthread_mutex_lock(&channel->lock);
+    pthread_mutex_lock(&user->lock);
     HASH_DEL(channel->users, user);
     HASH_DEL(user->channels, channel);
+    channel->nusers--;
+    pthread_mutex_unlock(&user->lock);
     pthread_mutex_unlock(&channel->lock);
     return 0;
 }

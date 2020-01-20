@@ -517,6 +517,7 @@ int handle_JOIN(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_use
         return error;
     }
     struct chirc_channel_t *channel;
+    struct chirc_message_t reply_msg;
     char channel_name[MAX_CHANNEL_NAME_LEN + 1];
     strcpy(channel_name, msg->params[0]);
     pthread_mutex_lock(&ctx->channels_lock);
@@ -526,14 +527,32 @@ int handle_JOIN(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_use
     {
         /* remove from all channels */
     }
-    else if (channel)
-    {
-        /* channel exists, join channel */
-    }
     else
     {
-        /* channel does not exist, create and join channel */
-
+      if (channel == NULL)
+      {
+          /* channel does not exist, create channel */
+          channel = create_channel(ctx, channel_name);
+      }
+      add_user_to_channel(channel, user);
+      chirc_message_construct(&reply_msg, ctx->server_name, RPL_NAMREPLY);
+      chirc_message_add_parameter(&reply_msg, user->nickname, false);
+      chirc_message_add_parameter(&reply_msg, "= #foobar :foobar1 foobar2 foobar3", false);
+      error = send_message(&reply_msg, user);
+      if (error)
+      {
+          return -1;
+      }
+      chirc_message_clear(&reply_msg);
+      chirc_message_construct(&reply_msg, ctx->server_name, RPL_ENDOFNAMES);
+      chirc_message_add_parameter(&reply_msg, user->nickname, false);
+      chirc_message_add_parameter(&reply_msg, "#foobar :End of NAMES list", false);
+      error = send_message(&reply_msg, user);
+      if (error)
+      {
+          return -1;
+      }
+      chirc_message_clear(&reply_msg);
     }
     return 0;
 }
