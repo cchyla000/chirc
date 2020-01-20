@@ -135,6 +135,10 @@ void *service_user(void *args)
      */
     pthread_detach(pthread_self());
 
+    pthread_mutex_lock(&ctx->users_lock);
+    ctx->connected_clients++;
+    pthread_mutex_unlock(&ctx->users_lock);
+
     while(1)
     {
         chilog(TRACE, "ln 136: %d", user->is_registered);
@@ -143,8 +147,8 @@ void *service_user(void *args)
         if (nbytes == 0)
         {
             close(client_socket);
+            destroy_user_and_exit(user, ctx);
             free(wa);
-            free(user);
             pthread_exit(NULL);
         }
         chilog(TRACE, "ln 146: %d", user->is_registered);
@@ -168,7 +172,8 @@ void *service_user(void *args)
                     if (error == -1)
                     {
                         close(client_socket);
-                        destroy_user_and_exit(user, wa);
+                        destroy_user_and_exit(user, ctx);
+                        free(wa);
                     }
                     break;
                 }
@@ -199,12 +204,31 @@ void *service_user(void *args)
 
 }
 
-void destroy_user_and_exit(struct chirc_user_t *user, struct worker_args *wa)
+void destroy_user_and_exit(struct chirc_user_t *user, struct ctx_t *ctx)
 {
-    // Remove user from all of the channels it is in...
-    // Remove user from the hash in the ctx struct ...
+    struct chirc_channel_t *c;
+    struct chirc_channel_t *tmp; 
 
-    free(wa);
+    /* Remove user from all of the channels it is in */
+    HASH_ITER(hh, user->channels, c, tmp)
+    {
+        pthread_mutex_lock(&c->lock);
+        pthread_mutex_lock(&user->lock);
+        HASH_DEL(c->users, user);
+        pthread_mutex_unlock(&user->lock);
+        pthread_mutex_unlock(&c->lock);
+    } 
+
+    /* Remove user from the ctx hash of users */ 
+    pthread_mutex_lock(&ctx->users_lock);
+    ctx->connected_clients--;
+    if (user->is_registered)
+    {
+        HASH_DEL(ctx->users, user);
+    }
+    pthread_mutex_unlock(&ctx->users_lock);
+
     free(user);
     pthread_exit(NULL);
+
 }

@@ -340,7 +340,10 @@ int handle_QUIT(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_use
         sprintf(param_buffer, "Closing Link: (%s)", msg->params[0]);
         chirc_message_add_parameter(&reply_msg, param_buffer, true);
     }
-    error = send_message(&reply_msg, user);
+    if (error = send_message(&reply_msg, user));
+    {
+        return error;
+    }
     return error;
 }
 
@@ -491,7 +494,14 @@ int handle_LUSERS(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_u
     char param_buffer[MAX_MSG_LEN + 1] = {0};
     chirc_message_construct(&reply_msg, ctx->server_name, RPL_LUSERCLIENT);
     chirc_message_add_parameter(&reply_msg, user->nickname, false);
-    sprintf(param_buffer, "There are %d users and %d services on %d servers", HASH_COUNT(ctx->users), 0, 1);
+
+    pthread_mutex_lock(&ctx->users_lock);
+    int registered_users = HASH_COUNT(ctx->users);
+    int connected_clients = ctx->connected_clients;
+    int unknown_clients = connected_clients - registered_users;
+    pthread_mutex_unlock(&ctx->users_lock);
+
+    sprintf(param_buffer, "There are %d users and %d services on %d servers", registered_users, 0, 1);
 
     chirc_message_add_parameter(&reply_msg, param_buffer, true);
     error = send_message(&reply_msg, user);
@@ -516,7 +526,8 @@ int handle_LUSERS(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_u
     /* Send RPL_LUSERUNKNOWN */
     chirc_message_construct(&reply_msg, ctx->server_name, RPL_LUSERUNKNOWN);
     chirc_message_add_parameter(&reply_msg, user->nickname, false);
-    chirc_message_add_parameter(&reply_msg, "0", false);
+    sprintf(param_buffer, "%d", unknown_clients);
+    chirc_message_add_parameter(&reply_msg, param_buffer, false);
     chirc_message_add_parameter(&reply_msg, "unknown connection(s)", true);
     error = send_message(&reply_msg, user);
     if (error)
@@ -528,7 +539,11 @@ int handle_LUSERS(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_u
     /* Send RPL_LUSERCHANNELS */
     chirc_message_construct(&reply_msg, ctx->server_name, RPL_LUSERCHANNELS);
     chirc_message_add_parameter(&reply_msg, user->nickname, false);
-    chirc_message_add_parameter(&reply_msg, "0", false);
+    pthread_mutex_lock(&ctx->channels_lock);
+    int num_channels = HASH_COUNT(ctx->channels);
+    pthread_mutex_unlock(&ctx->channels_lock);
+    sprintf(param_buffer, "%d", num_channels);
+    chirc_message_add_parameter(&reply_msg, param_buffer, false);
     chirc_message_add_parameter(&reply_msg, "channels formed", true);
     error = send_message(&reply_msg, user);
     if (error)
@@ -540,7 +555,8 @@ int handle_LUSERS(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_u
     /* Send RPL_LUSERME */
     chirc_message_construct(&reply_msg, ctx->server_name, RPL_LUSERME);
     chirc_message_add_parameter(&reply_msg, user->nickname, false);
-    sprintf(param_buffer, "I have %d clients and 1 servers", HASH_COUNT(ctx->users), 1);
+    sprintf(param_buffer, "I have %d clients and 1 servers",
+            connected_clients);
     chirc_message_add_parameter(&reply_msg, param_buffer, true);
     error = send_message(&reply_msg, user);
     if (error)
