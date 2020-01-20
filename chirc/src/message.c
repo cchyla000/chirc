@@ -75,6 +75,11 @@ int chirc_message_to_string(struct chirc_message_t *msg, char *s)
     {
         *tmp = ' ';
         tmp++;
+        if (msg->longlast)
+        {
+            *tmp = ':';
+            tmp++;
+        }
         strcpy(tmp, msg->params[i]);
         tmp += strlen(msg->params[i]);
     }
