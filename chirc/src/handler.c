@@ -423,7 +423,7 @@ int handle_PRIVMSG(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_
     {
         chirc_message_construct(&reply_msg, ctx->server_name, ERR_NOSUCHNICK);
         chirc_message_add_parameter(&reply_msg, user->nickname, false);
-        sprintf(buffer, "%s :There was no such nickname", recipient_nick);
+        sprintf(buffer, "%s :No such nick/channel", recipient_nick);
         chirc_message_add_parameter(&reply_msg, buffer, false);
         error = send_message(&reply_msg, user);
         if (error)
@@ -440,7 +440,35 @@ int handle_PRIVMSG(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_
 
 int handle_NOTICE(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_user_t *user)
 {
-    return handle_PRIVMSG(ctx, msg, user);
+  int error;
+  if ((error = handle_not_registered(ctx, user)))
+  {
+      return error;
+  }
+  struct chirc_message_t reply_msg;
+  if (msg->nparams == 0 || msg->nparams == 1)
+    return 1
+  }
+  struct chirc_user_t *recipient;
+  char buffer[MAX_MSG_LEN + 1] = {0};
+  char recipient_nick[MAX_NICK_LEN + 1];
+  strcpy(recipient_nick, msg->params[0]);
+  pthread_mutex_lock(&ctx->users_lock);
+  HASH_FIND_STR(ctx->users, recipient_nick, recipient);
+  pthread_mutex_unlock(&ctx->users_lock);
+  if (recipient)
+  {
+      sprintf(buffer, "%s!%s@%s", user->nickname, user->username, user->hostname);
+      chirc_message_construct(&reply_msg, buffer, msg->cmd);
+      for (int i = 0; i < msg->nparams - 1; i++)
+      {
+          chirc_message_add_parameter(&reply_msg, msg->params[i], false);
+      }
+      chirc_message_add_parameter(&reply_msg, msg->params[msg->nparams - 1], true);
+      reply_msg.longlast = msg->longlast;
+      send_message(&reply_msg, recipient);
+  }
+  return 0;
 }
 
 int handle_PING(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_user_t *user)
