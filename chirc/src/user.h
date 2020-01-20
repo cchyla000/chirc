@@ -29,6 +29,6 @@ void *service_user(void *args);
  * and worker_args struct passed to the thread handling this user,
  * and destroys the thread
  */
-void destroy_user_and_exit(struct chirc_user_t *user, struct worker_args *wa);
+void destroy_user_and_exit(struct chirc_user_t *user, struct ctx_t *ctx);
 
 #endif /* CHIRC_USER_H */
