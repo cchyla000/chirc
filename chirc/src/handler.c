@@ -383,6 +383,23 @@ int handle_PRIVMSG(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_
           return 1;
       }
     }
+    if (msg->nparams == 1)
+    {
+      chirc_message_construct(&reply_msg, ctx->server_name,
+                              ERR_NOTEXTTOSEND);
+      chirc_message_add_parameter(&reply_msg, user->nickname, false);
+      chirc_message_add_parameter(&reply_msg,
+                                  ":No text to send", false);
+      error = send_message(&reply_msg, user);
+      if (error)
+      {
+          return -1;
+      }
+      else
+      {
+          return 1;
+      }
+    }
     struct chirc_user_t *recipient;
     char buffer[MAX_MSG_LEN + 1] = {0};
     char recipient_nick[MAX_NICK_LEN + 1];
