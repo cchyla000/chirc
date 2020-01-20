@@ -81,6 +81,8 @@ int chirc_message_to_string(struct chirc_message_t *msg, char *s)
 
     if (msg->nparams != 0)
     {
+        *tmp = ' ';  
+        tmp++;
         if (msg->longlast)
         {
             *tmp = ':';
