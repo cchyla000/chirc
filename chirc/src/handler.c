@@ -421,7 +421,7 @@ int handle_PRIVMSG(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_
     }
     else
     {
-        chirc_message_construct(&reply_msg, ctx->server_name, ERR_WASNOSUCHNICK);
+        chirc_message_construct(&reply_msg, ctx->server_name, ERR_NOSUCHNICK);
         chirc_message_add_parameter(&reply_msg, user->nickname, false);
         sprintf(buffer, "%s :There was no such nickname", recipient_nick);
         chirc_message_add_parameter(&reply_msg, buffer, false);
