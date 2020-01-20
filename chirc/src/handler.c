@@ -523,7 +523,7 @@ int handle_JOIN(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_use
     pthread_mutex_lock(&ctx->channels_lock);
     HASH_FIND_STR(ctx->channels, channel_name, channel);
     pthread_mutex_unlock(&ctx->channels_lock);
-    if (channel_name[0] = '0')
+    if (channel_name[0] == '0')
     {
         /* remove from all channels */
     }
