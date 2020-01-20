@@ -370,6 +370,7 @@ int handle_PRIVMSG(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_
     {
       chirc_message_construct(&reply_msg, ctx->server_name,
                               ERR_NORECIPIENT);
+      chirc_message_add_parameter(&reply_msg, user->nickname, false);
       chirc_message_add_parameter(&reply_msg,
                                   ":No recipient given (PRIVMSG)", false);
       error = send_message(&reply_msg, user);
