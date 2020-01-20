@@ -68,13 +68,24 @@ int chirc_message_to_string(struct chirc_message_t *msg, char *s)
     strcpy(tmp, msg->cmd);
     tmp += strlen(msg->cmd); 
 
-    for (i = 0; i < msg->nparams; i++)
+    for (i = 0; i < (msg->nparams - 1); i++)
     {
         *tmp = ' ';  
         tmp++;
         strcpy(tmp, msg->params[i]);
         tmp += strlen(msg->params[i]);
     }    
+
+    if (msg->nparams != 0)
+    {
+        if (msg->longlast)
+        {
+            *tmp = ':';
+            tmp++;
+        }
+        strcpy(tmp, msg->params[i]);
+        tmp += strlen(msg->params[i]);
+    }
 
     strcpy(tmp, "\r\n"); 
     return 0;
