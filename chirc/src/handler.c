@@ -540,7 +540,8 @@ int handle_LUSERS(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_u
     /* Send RPL_LUSERME */
     chirc_message_construct(&reply_msg, ctx->server_name, RPL_LUSERME);
     chirc_message_add_parameter(&reply_msg, user->nickname, false);
-    chirc_message_add_parameter(&reply_msg, "I have 1 clients and 1 servers", true);
+    sprintf(param_buffer, "I have %d clients and 1 servers", HASH_COUNT(ctx->users), 1);
+    chirc_message_add_parameter(&reply_msg, param_buffer, true);
     error = send_message(&reply_msg, user);
     if (error)
     {
