@@ -365,6 +365,7 @@ int handle_PRIVMSG(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_
     {
         return error;
     }
+    struct chirc_message_t reply_msg;
     if (msg->nparams == 0)
     {
       chirc_message_construct(&reply_msg, ctx->server_name,
@@ -382,7 +383,6 @@ int handle_PRIVMSG(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_
       }
     }
     struct chirc_user_t *recipient;
-    struct chirc_message_t reply_msg;
     char buffer[MAX_MSG_LEN + 1] = {0};
     char recipient_nick[MAX_NICK_LEN + 1];
     strcpy(recipient_nick, msg->params[0]);
