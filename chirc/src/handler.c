@@ -5,40 +5,10 @@
 #include <stdbool.h>
 #include "handler.h"
 #include "log.h"
+#include "reply.h"
 
 #define MAX_MSG_LEN 512
 #define MAX_HOST_LEN 63
-
-#define RPL_WELCOME "001"
-#define RPL_YOURHOST "002"
-#define RPL_CREATED "003"
-#define RPL_MYINFO "004"
-#define RPL_LUSERCLIENT "251"
-#define RPL_LUSEROP "252"
-#define RPL_LUSERUNKNOWN "253"
-#define RPL_LUSERCHANNELS "254"
-#define RPL_LUSERME "255"
-
-#define ERR_NOSUCHNICK "401"
-
-/* PING or PONG message missing the originator parameter: */
-#define ERR_NOORIGIN "409"
-
-#define ERR_NORECIPIENT "411"
-
-/* Used by PRIVMSG: */
-#define ERR_NOTEXTTOSEND "412"
-#define ERR_NOTOPLEVEL "413"
-#define ERR_WILDTOPLEVEL "414"
-#define ERR_BADMASK "415"
-
-#define ERR_UNKNOWNCOMMAND "421"
-#define ERR_NOMOTD "422"
-#define ERR_NONICKNAMEGIVEN "431"
-#define ERR_NICKNAMEINUSE "433"
-#define ERR_NOTREGISTERED "451"
-#define ERR_NEEDMOREPARAMS "461"
-#define ERR_ALREADYREGISTERED "462"
 
 #define IRC_VERSION "2.10"
 

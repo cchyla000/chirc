@@ -17,6 +17,8 @@
 #include "handler.h"
 #include "log.h"
 #include "ctx.h"
+#include "reply.h"
+#include "message.h"
 
 /*
  * Worst case scenario is if we cannot parse a first message of
@@ -175,7 +177,19 @@ void *service_user(void *args)
 
             if(i == num_handlers)
             {
-                /* not a known command */
+                struct chirc_message_t reply_msg;
+                char prefix_buffer[MAX_MSG_LEN + 1] = {0};
+                chirc_message_construct(&reply_msg, ctx->server_name, ERR_UNKNOWNCOMMAND);
+                chirc_message_add_parameter(&reply_msg, user->nickname, false);
+                sprintf(buffer, "%s :Unknown command", cmd);
+                chirc_message_add_parameter(&reply_msg, prefix_buffer, false);
+                int nbytes;
+                char to_send[MAX_MSG_LEN + 1] = {0};
+                chirc_message_to_string(msg, to_send);
+
+                pthread_mutex_lock(&user->lock);
+                nbytes = send(user->socket, to_send, strlen(to_send), 0);
+                pthread_mutex_unlock(&user->lock);
             }
         }
 
