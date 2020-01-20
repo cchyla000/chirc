@@ -7,22 +7,22 @@ int chirc_message_from_string(struct chirc_message_t *msg, char *s)
 {
     char *rest;
     char *token = NULL;
-    unsigned int i; 
+    unsigned int i;
     rest = s;
-   
-    /* Parse prefix if present; no whitespace before allowed. */ 
-    if (*rest == ':')  
+
+    /* Parse prefix if present; no whitespace before allowed. */
+    if (*rest == ':')
     {
         rest++;
         token = strtok_r(rest, " ", &rest);
-        msg->prefix = token;      
+        msg->prefix = token;
     }
 
     /* Parse command */
     token = strtok_r(rest, " \r", &rest);
-    msg->cmd = token;    
+    msg->cmd = token;
 
-    /* Continue parsing until MAX_PARAMS exceeded,  
+    /* Continue parsing until MAX_PARAMS exceeded,
        end of message, or no more parameters detected */
     for (i=0; i < MAX_PARAMS && (*rest != '\n'); i++)
     {
@@ -32,53 +32,64 @@ int chirc_message_from_string(struct chirc_message_t *msg, char *s)
             token = strtok_r(rest, "\r", &rest);
             msg->longlast = true;
         }
-        else 
+        else
         {
             token = strtok_r(rest, " \r", &rest);
         }
         msg->params[i] = token;
     }
-    
+
     msg->nparams = i;
 
     /* Must move pointer to end of message if we haven't already */
     if (i == MAX_PARAMS && (*rest != '\n'))
     {
-        strtok_r(rest, "\r", &rest);    
+        strtok_r(rest, "\r", &rest);
     }
 
-    return (rest - s); 
+    return (rest - s);
 }
 
 int chirc_message_to_string(struct chirc_message_t *msg, char *s)
 {
     char *tmp = s;
     int i;
- 
+
     if (*msg->prefix)
     {
         *tmp = ':';
         tmp++;
         strcpy(tmp, msg->prefix);
         tmp += strlen(msg->prefix);
-        *tmp = ' ';   
+        *tmp = ' ';
         tmp++;
     }
 
     strcpy(tmp, msg->cmd);
-    tmp += strlen(msg->cmd); 
+    tmp += strlen(msg->cmd);
 
-    for (i = 0; i < msg->nparams; i++)
+    for (i = 0; i < msg->nparams - 1; i++)
     {
-        *tmp = ' ';  
+        *tmp = ' ';
         tmp++;
         strcpy(tmp, msg->params[i]);
         tmp += strlen(msg->params[i]);
-    }    
+    }
 
-    strcpy(tmp, "\r\n"); 
+    if (msg->nparams != 0)
+    {
+        if (msg->longlast)
+        {
+            *tmp = ':';
+            tmp++;
+        }
+        strcpy(tmp, msg->params[i]);
+        tmp += strlen(msg->params[i]);
+    }
+
+    strcpy(tmp, "\r\n");
     return 0;
-    
+
 }
 
 int chirc_message_construct(struct chirc_message_t *msg, char *prefix, char *cmd)
@@ -97,14 +108,14 @@ int chirc_message_add_parameter(struct chirc_message_t *msg, char *param, bool l
         {
             msg->params[msg->nparams] = "*";
         }
-        else 
+        else
         {
             msg->params[msg->nparams] = param;
         }
         msg->nparams++;
         msg->longlast = longlast;
     }
-    else 
+    else
     {
         return 1;
     }
@@ -115,4 +126,3 @@ int chirc_message_clear(struct chirc_message_t *msg)
     memset(msg, 0, sizeof (struct chirc_message_t));
     return 0;
 }
-
