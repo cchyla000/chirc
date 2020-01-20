@@ -518,6 +518,7 @@ int handle_JOIN(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_use
     }
     struct chirc_channel_t *channel;
     struct chirc_message_t reply_msg;
+    char buffer[MAX_MSG_LEN + 1] = {0};
     char channel_name[MAX_CHANNEL_NAME_LEN + 1];
     strcpy(channel_name, msg->params[0]);
     pthread_mutex_lock(&ctx->channels_lock);
@@ -529,12 +530,29 @@ int handle_JOIN(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_use
     }
     else
     {
+      struct chirc_user_t *user_in_channel;
       if (channel == NULL)
       {
           /* channel does not exist, create channel */
           channel = create_channel(ctx, channel_name);
       }
       add_user_to_channel(channel, user);
+
+      sprintf(buffer, "%s!%s@%s", user->nickname, user->username, user->hostname);
+      chirc_message_construct(&reply_msg, buffer, msg->cmd);
+      for (int i = 0; i < msg->nparams; i++)
+      {
+          chirc_message_add_parameter(&reply_msg, msg->params[i], false);
+      }
+      pthread_mutex_lock(&channel->lock);
+      for(user_in_channel=channel->users; user_in_channel != NULL;
+                                     user_in_channel=user_in_channel->hh.next)
+      {
+          send_message(&reply_msg, user_in_channel);
+      }
+      pthread_mutex_unlock(&channel->lock);
+      chirc_message_clear(&reply_msg);
+
       chirc_message_construct(&reply_msg, ctx->server_name, RPL_NAMREPLY);
       chirc_message_add_parameter(&reply_msg, user->nickname, false);
       chirc_message_add_parameter(&reply_msg, "= #foobar :foobar1 foobar2 foobar3", false);
