@@ -6,10 +6,12 @@
 #include "user.h"
 #include "ctx.h"
 
+#define MAX_CHANNEL_NAME_LEN 50 
+
 struct chirc_channel_t {
    char channel_name[50];
    struct chirc_user_t *users; // hash of users in channel
-   bool lock_enabled;
+   unsigned int nusers;
    pthread_mutex_t lock;
    UT_hash_handle hh;
 };
