@@ -511,11 +511,12 @@ int handle_WHOIS(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_us
 int handle_JOIN(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_user_t *user)
 {
     int error;
-    if (error = (handle_not_registered(ctx, user)) || error = (handle_not_enough_parameters(ctx, msg, user, 1)))
+    if ((error = (handle_not_registered(ctx, user))) ||
+                  (error = (handle_not_enough_parameters(ctx, msg, user, 1))))
     {
         return error;
     }
-    struct chirc_channel_t *channel
+    struct chirc_channel_t *channel;
     char channel_name[MAX_CHANNEL_NAME_LEN + 1];
     strcpy(channel_name, msg->params[0]);
     pthread_mutex_lock(&ctx->channels_lock);
