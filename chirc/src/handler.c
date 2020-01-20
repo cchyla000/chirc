@@ -20,8 +20,18 @@
 #define RPL_LUSERME "255"
 
 #define ERR_NOSUCHNICK "401"
+
+/* PING or PONG message missing the originator parameter: */
+#define ERR_NOORIGIN "409" 
+
 #define ERR_NORECIPIENT "411"
+
+/* Used by PRIVMSG: */
 #define ERR_NOTEXTTOSEND "412"
+#define ERR_NOTOPLEVEL "413"
+#define ERR_WILDTOPLEVEL "414"
+#define ERR_BADMASK "415"
+
 #define ERR_UNKNOWNCOMMAND "421"
 #define ERR_NOMOTD "422"
 #define ERR_NONICKNAMEGIVEN "431"
