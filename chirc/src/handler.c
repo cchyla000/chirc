@@ -273,7 +273,6 @@ int handle_NICK(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_use
     }
 
     strcpy(nick, msg->params[0]);
-
     HASH_FIND_STR(ctx->users, nick, found_user);
 
     if (found_user)  // Nickname already in use
@@ -288,7 +287,11 @@ int handle_NICK(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_use
     }
     else if (user->is_registered)
     {
-        
+        pthread_mutex_lock(&ctx->users_lock);
+        pthread_mutex_lock(&user->lock);
+        strcpy(user->nickname, nick);
+        pthread_mutex_unlock(&user->lock);
+        pthread_mutex_unlock(&ctx->users_lock);        
     }
     else  // User not registered
     {
