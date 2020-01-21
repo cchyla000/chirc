@@ -719,7 +719,6 @@ int handle_WHOIS(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_us
         chirc_message_add_parameter(&reply_msg, found_user->nickname, false);
         chirc_message_add_parameter(&reply_msg, found_user->username, false);
         chirc_message_add_parameter(&reply_msg, found_user->hostname, false);
-        chirc_message_add_parameter(&reply_msg, "*", false);
         chirc_message_add_parameter(&reply_msg, found_user->realusername, true);
         error = send_message(&reply_msg, user);
         if (error)
