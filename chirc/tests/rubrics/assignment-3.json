@@ -1,4 +1,5 @@
 {
+  "total_points": 50,
   "categories": [
     {
       "subcategories": [
@@ -96,7 +97,11 @@
       "subcategories": [
         {
           "cid": "LIST",
-          "num_tests": 5
+          "num_tests": 4
+        },
+        {
+          "cid": "LIST_TOPIC",
+          "num_tests": 1
         }
       ],
       "points": 2,
@@ -124,13 +129,16 @@
         },
         {
           "cid": "WHOIS_CHANNEL",
-          "num_tests": 2
+          "num_tests": 1
+        },
+        {
+          "cid": "WHOIS_CHANNEL_AWAY",
+          "num_tests": 1
         }
       ],
       "points": 2,
       "name": "Update Assignment 2"
     }
   ],
-  "total_points": 50,
   "name": "Assignment 2"
 }
