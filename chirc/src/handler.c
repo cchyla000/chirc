@@ -299,7 +299,7 @@ int handle_USER(struct ctx_t *ctx, struct chirc_message_t *msg,
     else if (user->is_registered)
     {
         chirc_message_construct(&reply_msg, ctx->server_name,
-                                ERR_ALREADYREGISTRED);
+                                ERR_ALREADYREGISTERED);
         chirc_message_add_parameter(&reply_msg, user->nickname, false);
         chirc_message_add_parameter(&reply_msg, "Unauthorized command "
                                     "(already registered)", true);
