@@ -122,6 +122,7 @@ void *service_user(void *args)
     user->socket = client_socket;
     user->channels = NULL;
     user->is_registered = false;
+    user->is_unknown = true;
     chilog(TRACE, "ln 120: %d", user->is_registered);
     pthread_mutex_init(&user->lock, NULL);
     set_host_name(user, wa);
@@ -137,6 +138,7 @@ void *service_user(void *args)
     pthread_detach(pthread_self());
 
     pthread_mutex_lock(&ctx->users_lock);
+    ctx->unknown_clients++;
     ctx->connected_clients++;
     pthread_mutex_unlock(&ctx->users_lock);
 
@@ -224,7 +226,13 @@ void destroy_user(struct chirc_user_t *user, struct ctx_t *ctx)
 
     /* Remove user from the ctx hash of users */ 
     pthread_mutex_lock(&ctx->users_lock);
+
+    if (user->is_unknown)
+    {
+        ctx->unknown_clients--;
+    }
     ctx->connected_clients--;
+
     if (user->is_registered)
     {
         HASH_DEL(ctx->users, user);

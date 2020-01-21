@@ -138,6 +138,7 @@ int main(int argc, char *argv[])
     struct ctx_t *ctx = calloc(1, sizeof(struct ctx_t));
     ctx->users = NULL;
     ctx->channels = NULL;
+    ctx->unknown_clients = 0;
     ctx->connected_clients = 0;
     pthread_mutex_init(&ctx->users_lock, NULL);
     pthread_mutex_init(&ctx->channels_lock, NULL);
