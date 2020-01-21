@@ -163,7 +163,7 @@ static int send_welcome_messages(struct ctx_t *ctx, struct chirc_user_t *user)
     chirc_message_construct(&msg, ctx->server_name, RPL_LUSERME);
     chirc_message_add_parameter(&msg, user->nickname, false);
     sprintf(param_buffer, "I have %d clients and 1 servers",
-            connected_clients);
+            registered_users);
     chirc_message_add_parameter(&msg, param_buffer, true);
     error = send_message(&msg, user);
     if (error)
@@ -572,7 +572,7 @@ int handle_LUSERS(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_u
     chirc_message_construct(&reply_msg, ctx->server_name, RPL_LUSERME);
     chirc_message_add_parameter(&reply_msg, user->nickname, false);
     sprintf(param_buffer, "I have %d clients and 1 servers",
-            connected_clients);
+            registered_users);
     chirc_message_add_parameter(&reply_msg, param_buffer, true);
     error = send_message(&reply_msg, user);
     if (error)
