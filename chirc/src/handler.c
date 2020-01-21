@@ -497,7 +497,6 @@ int handle_PING(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_use
 
     chirc_message_construct(&reply_msg, NULL, "PONG");
     chirc_message_add_parameter(&reply_msg, ctx->server_name, false);
-    chirc_message_add_parameter(&reply_msg, user->nickname, false);
     error = send_message(&reply_msg, user);
     if (error)
     {
