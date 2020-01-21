@@ -372,6 +372,7 @@ int handle_QUIT(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_use
     if (msg->nparams < 1)
     {
         sprintf(param_buffer, "Closing Link: %s (Client Quit)", 
+                user->hostname); 
         chirc_message_add_parameter(&reply_msg, param_buffer, true);
     }
     else
