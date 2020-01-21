@@ -257,7 +257,7 @@ int handle_NICK(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_use
         return error;
     }
 
-    strcpy(nick, msg->params[0]);
+    strncpy(nick, msg->params[0], MAX_NICK_LEN);
     HASH_FIND_STR(ctx->users, nick, found_user);
 
     if (found_user)  // Nickname already in use
@@ -293,7 +293,6 @@ int handle_NICK(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_use
 
         if (*user->username)  // Registration complete
         {
-            chilog(INFO, "Adding user %s to user hash", user->nickname);
             user->is_registered = true;
             pthread_mutex_lock(&ctx->users_lock);
             HASH_ADD_STR(ctx->users, nickname, user);
@@ -332,7 +331,6 @@ int handle_USER(struct ctx_t *ctx, struct chirc_message_t *msg,
         strncpy(user->realusername, msg->params[3], MAX_HOST_LEN);
         if (*user->nickname)  // Registration complete
         {
-            chilog(INFO, "Adding user %s to user hash", user->nickname);
             user->is_registered = true;
             pthread_mutex_lock(&ctx->users_lock);
             HASH_ADD_STR(ctx->users, nickname, user);
