@@ -881,7 +881,7 @@ int handle_PART(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_use
         else
         {
           chirc_message_add_parameter(&reply_msg, msg->params[0], false);
-          chirc_message_add_parameter(&reply_msg, user->nick, true);
+          chirc_message_add_parameter(&reply_msg, user->nickname, true);
           reply_msg.longlast = msg->longlast;
         }
 
