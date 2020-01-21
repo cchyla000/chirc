@@ -718,11 +718,13 @@ int handle_JOIN(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_use
 
 int handle_PART(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_user_t *user)
 {
-    int error = handle_not_registered(ctx, user);
-    if (error)
+    int error;
+    if ((error = (handle_not_registered(ctx, user))) ||
+                  (error = (handle_not_enough_parameters(ctx, msg, user, 1))))
     {
         return error;
     }
+
     return 0;
 }
 
