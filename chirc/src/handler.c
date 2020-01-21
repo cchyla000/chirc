@@ -392,13 +392,19 @@ int handle_PRIVMSG(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_
       }
     }
     struct chirc_user_t *recipient;
+    struct chirc_channel_t *recipient_channel;
     char buffer[MAX_MSG_LEN + 1] = {0};
     char recipient_nick[MAX_NICK_LEN + 1];
+    char recipient_ch_name[MAX_CHANNEL_NAME_LEN + 1];
     strcpy(recipient_nick, msg->params[0]);
+    strcpy(recipient_ch_name, msg->params[0]);
     pthread_mutex_lock(&ctx->users_lock);
     HASH_FIND_STR(ctx->users, recipient_nick, recipient);
     pthread_mutex_unlock(&ctx->users_lock);
-    if (recipient)
+    pthread_mutex_lock(&ctx->channels_lock);
+    HASH_FIND_STR(ctx->channels, recipient_ch_name, recipient_channel);
+    pthread_mutex_unlock(&ctx->channels_lock);
+    if (recipient || recipient_channel)
     {
         sprintf(buffer, "%s!%s@%s", user->nickname, user->username, user->hostname);
         chirc_message_construct(&reply_msg, buffer, msg->cmd);
@@ -408,7 +414,19 @@ int handle_PRIVMSG(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_
         }
         chirc_message_add_parameter(&reply_msg, msg->params[msg->nparams - 1], true);
         reply_msg.longlast = msg->longlast;
-        send_message(&reply_msg, recipient);
+        if (recipient)
+        {
+            send_message(&reply_msg, recipient);
+        }
+        else
+        {
+            struct chirc_user_t *user_in_channel;
+            for(user_in_channel=recipient_channel->users; user_in_channel != NULL;
+                                           user_in_channel=user_in_channel->hh.next)
+            {
+                send_message(&reply_msg, user_in_channel);
+            }
+        }
     }
     else
     {
