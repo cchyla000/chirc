@@ -393,6 +393,7 @@ int handle_PRIVMSG(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_
     }
     struct chirc_user_t *recipient;
     struct chirc_channel_t *recipient_channel;
+    struct chirc_channel_t *channel_exists;
     char buffer[MAX_MSG_LEN + 1] = {0};
     char recipient_nick[MAX_NICK_LEN + 1];
     char recipient_ch_name[MAX_CHANNEL_NAME_LEN + 1];
@@ -402,6 +403,9 @@ int handle_PRIVMSG(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_
     HASH_FIND_STR(ctx->users, recipient_nick, recipient);
     HASH_FIND_STR(user->channels, recipient_ch_name, recipient_channel);
     pthread_mutex_unlock(&ctx->users_lock);
+    pthread_mutex_lock(&ctx->channels_lock);
+    HASH_FIND_STR(ctx->channels, recipient_ch_name, channel_exists);
+    pthread_mutex_unlock(&ctx->channels_lock);
     if (recipient || recipient_channel)
     {
         sprintf(buffer, "%s!%s@%s", user->nickname, user->username, user->hostname);
@@ -427,6 +431,21 @@ int handle_PRIVMSG(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_
                     send_message(&reply_msg, user_in_channel);
                 }
             }
+        }
+    }
+    else if (channel_exists)
+    {
+        chirc_message_construct(&reply_msg, ctx->server_name, ERR_CANNOTSENDTOCHAN);
+        chirc_message_add_parameter(&reply_msg, user->nickname, false);
+        sprintf(buffer, "%s :Cannot send to channel", channel_name);
+        chirc_message_add_parameter(&reply_msg, buffer, false);
+        if (error)
+        {
+            return -1;
+        }
+        else
+        {
+            return 1;
         }
     }
     else
