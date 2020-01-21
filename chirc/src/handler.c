@@ -284,8 +284,28 @@ int handle_NICK(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_use
         sprintf(param_buffer, "%s!%s@%s", user->nickname, user->username,
                 user->hostname);
         chirc_message_construct(&reply_msg, param_buffer, "NICK");
-        chirc_message_add_parameter(&reply_msg, nick, false);
+        chirc_message_add_parameter(&reply_msg, nick, true);
         // Must send this message to all channels that user is in...
+        struct chirc_channel_t *channel;
+        struct chirc_channel_cont_t *channel_container;
+        struct chirc_user_t *user_in_channel;
+        struct chirc_user_cont_t*user_container;
+        for (channel_container=user->channels; channel_container != NULL;
+                                channel_container = channel_container->hh.next)
+        {
+          channel = find_channel_in_user(ctx, user, channel_container->channel_name);
+          pthread_mutex_lock(&channel->lock);
+          for (user_container=channel->users; user_container != NULL;
+                                         user_container=user_container->hh.next)
+          {
+              pthread_mutex_unlock(&channel->lock);
+              user_in_channel = find_user_in_channel(ctx, channel,
+                                                    user_container->nickname);
+              pthread_mutex_lock(&channel->lock);
+              send_message(&reply_msg, user_in_channel);
+          }
+          pthread_mutex_unlock(&channel->lock);
+        }
 
         pthread_mutex_lock(&ctx->users_lock);
         pthread_mutex_lock(&user->lock);
@@ -365,24 +385,55 @@ int handle_QUIT(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_use
 {
     int error;
     struct chirc_message_t reply_msg;
+    struct chirc_message_t reply_msg_to_user;
     chirc_message_clear (&reply_msg);
     char param_buffer[MAX_MSG_LEN + 1] = {0};
+    char param_buffer_user[MAX_MSG_LEN + 1] = {0};
+    char prefix_buffer[MAX_MSG_LEN + 1] = {0};
+    sprintf(prefix_buffer, "%s!%s@%s", user->nickname, user->username, user->hostname);
 
-    chirc_message_construct(&reply_msg, NULL, "ERROR");
+    chirc_message_construct(&reply_msg, prefix_buffer, "QUIT");
+    chirc_message_construct(&reply_msg_to_user, prefix_buffer, "ERROR");
     if (msg->nparams < 1)
     {
-        sprintf(param_buffer, "Closing Link: %s (Client Quit)", 
-                user->hostname); 
+        sprintf(param_buffer, "Client Quit");
         chirc_message_add_parameter(&reply_msg, param_buffer, true);
+        sprintf(param_buffer_user, "Closing Link: %s (Client Quit)", user->hostname);
+        chirc_message_add_parameter(&reply_msg_to_user, param_buffer_user, true);
     }
     else
     {
-        sprintf(param_buffer, "Closing Link: %s (%s)", user->hostname,
-                msg->params[0]);
+        sprintf(param_buffer, "%s", msg->params[0]);
         chirc_message_add_parameter(&reply_msg, param_buffer, true);
+        sprintf(param_buffer_user, "Closing Link: %s (%s)", user->hostname,
+                msg->params[0]);
+        chirc_message_add_parameter(&reply_msg_to_user, param_buffer_user, true);
     }
 
-    send_message(&reply_msg, user);
+    struct chirc_channel_t *channel;
+    struct chirc_channel_cont_t *channel_container;
+    struct chirc_user_t *user_in_channel;
+    struct chirc_user_cont_t*user_container;
+    for (channel_container=user->channels; channel_container != NULL;
+                            channel_container = channel_container->hh.next)
+    {
+      channel = find_channel_in_user(ctx, user, channel_container->channel_name);
+      pthread_mutex_lock(&channel->lock);
+      for (user_container=channel->users; user_container != NULL;
+                                     user_container=user_container->hh.next)
+      {
+          pthread_mutex_unlock(&channel->lock);
+          user_in_channel = find_user_in_channel(ctx, channel,
+                                                user_container->nickname);
+          pthread_mutex_lock(&channel->lock);
+          if (user != user_in_channel)
+          {
+              send_message(&reply_msg, user_in_channel);
+          }
+      }
+      pthread_mutex_unlock(&channel->lock);
+    }
+    send_message(&reply_msg_to_user, user);
     return -1;  // return error code so user is destroyed and exits
 }
 
@@ -714,10 +765,10 @@ int handle_WHOIS(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_us
     if (!found_user)
     {
         pthread_mutex_unlock(&ctx->users_lock);
-        chirc_message_construct(&reply_msg, ctx->server_name, ERR_NOSUCHNICK); 
+        chirc_message_construct(&reply_msg, ctx->server_name, ERR_NOSUCHNICK);
         chirc_message_add_parameter(&reply_msg, user->nickname, false);
         chirc_message_add_parameter(&reply_msg, msg->params[0], false);
-        chirc_message_add_parameter(&reply_msg, "No such nick/channel", true); 
+        chirc_message_add_parameter(&reply_msg, "No such nick/channel", true);
         error = send_message(&reply_msg, user);
         if (error)
         {
@@ -740,10 +791,10 @@ int handle_WHOIS(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_us
             pthread_mutex_unlock(&ctx->users_lock);
             return error;
         }
-        chirc_message_clear(&reply_msg); 
+        chirc_message_clear(&reply_msg);
 
         /* RPL_WHOISSERVER */
-        chirc_message_construct(&reply_msg, ctx->server_name, RPL_WHOISSERVER); 
+        chirc_message_construct(&reply_msg, ctx->server_name, RPL_WHOISSERVER);
         chirc_message_add_parameter(&reply_msg, user->nickname, false);
         chirc_message_add_parameter(&reply_msg, msg->params[0], false);
         chirc_message_add_parameter(&reply_msg, ctx->server_name, false);
@@ -754,10 +805,10 @@ int handle_WHOIS(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_us
             pthread_mutex_unlock(&ctx->users_lock);
             return error;
         }
-        chirc_message_clear(&reply_msg); 
+        chirc_message_clear(&reply_msg);
 
         /* RPL_ENDOFWHOIS */
-        chirc_message_construct(&reply_msg, ctx->server_name, RPL_ENDOFWHOIS); 
+        chirc_message_construct(&reply_msg, ctx->server_name, RPL_ENDOFWHOIS);
         chirc_message_add_parameter(&reply_msg, user->nickname, false);
         chirc_message_add_parameter(&reply_msg, msg->params[0], false);
         chirc_message_add_parameter(&reply_msg, "End of WHOIS list", true);
@@ -966,7 +1017,7 @@ int handle_LIST(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_use
 int handle_OPER(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_user_t *user)
 {
     int error;
-    if ((error = handle_not_registered(ctx, user)) || 
+    if ((error = handle_not_registered(ctx, user)) ||
         (error = handle_not_enough_parameters(ctx, msg, user, 2)))
     {
         return error;
