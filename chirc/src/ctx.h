@@ -18,6 +18,7 @@ struct ctx_t
     struct chirc_channel_t *channels;
     char server_name[MAX_HOST_LEN + 1];
     char date_created[DATE_LEN];  
+    int unknown_clients;
     int connected_clients;
     pthread_mutex_t users_lock;
     pthread_mutex_t channels_lock;

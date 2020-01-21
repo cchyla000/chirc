@@ -100,8 +100,8 @@ static int send_welcome_messages(struct ctx_t *ctx, struct chirc_user_t *user)
 
     pthread_mutex_lock(&ctx->users_lock);
     int registered_users = HASH_COUNT(ctx->users);
+    int unknown_clients = ctx->unknown_clients;
     int connected_clients = ctx->connected_clients;
-    int unknown_clients = connected_clients - registered_users;
     pthread_mutex_unlock(&ctx->users_lock);
 
     /* RPL_LUSERCLIENT */
@@ -247,6 +247,14 @@ int handle_NICK(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_use
     int error = 0;
     char param_buffer[MAX_MSG_LEN] = {0};
 
+    if (user->is_unknown)
+    {
+        user->is_unknown = false;
+        pthread_mutex_lock(&ctx->users_lock);
+        ctx->unknown_clients--;
+        pthread_mutex_unlock(&ctx->users_lock);
+    }
+
     if (msg->nparams < 1)  // No nickname given
     {
         chirc_message_construct(&reply_msg, ctx->server_name,
@@ -311,6 +319,14 @@ int handle_USER(struct ctx_t *ctx, struct chirc_message_t *msg,
     struct chirc_message_t reply_msg;
     chirc_message_clear (&reply_msg);
     int error = 0;
+
+    if (user->is_unknown)
+    {
+        user->is_unknown = false;
+        pthread_mutex_lock(&ctx->users_lock);
+        ctx->unknown_clients--;
+        pthread_mutex_unlock(&ctx->users_lock);
+    }
 
     if ((error = handle_not_enough_parameters(ctx, msg, user, 4)))
     {
@@ -612,8 +628,8 @@ int handle_LUSERS(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_u
 
     pthread_mutex_lock(&ctx->users_lock);
     int registered_users = HASH_COUNT(ctx->users);
+    int unknown_clients = ctx->unknown_clients;
     int connected_clients = ctx->connected_clients;
-    int unknown_clients = connected_clients - registered_users;
     pthread_mutex_unlock(&ctx->users_lock);
 
     sprintf(param_buffer, "There are %d users and %d services on %d servers", registered_users, 0, 1);
