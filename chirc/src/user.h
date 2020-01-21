@@ -22,6 +22,7 @@ struct chirc_user_t {
     struct chirc_channel_t *channels; // Hash of channels user is a part of
     bool is_registered;
     bool is_unknown;
+    bool is_operator;
     pthread_mutex_t lock;
     UT_hash_handle hh;
 };

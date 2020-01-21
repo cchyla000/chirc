@@ -956,8 +956,9 @@ int handle_LIST(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_use
 
 int handle_OPER(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_user_t *user)
 {
-    int error = handle_not_registered(ctx, user);
-    if (error)
+    int error;
+    if ((error = handle_not_registered(ctx, user)) || 
+        (error = handle_not_enough_parameters(ctx, msg, user, 2)))
     {
         return error;
     }
