@@ -514,62 +514,62 @@ int handle_PRIVMSG(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_
 
 int handle_NOTICE(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_user_t *user)
 {
-  int error;
-  if ((error = handle_not_registered(ctx, user)))
-  {
-      return error;
-  }
-  struct chirc_message_t reply_msg;
-  if (msg->nparams == 0 || msg->nparams == 1)
-  {
-    return 1;
-  }
-  struct chirc_user_t *recipient;
-  struct chirc_channel_t *recipient_channel;
-  char buffer[MAX_MSG_LEN + 1] = {0};
-  char recipient_nick[MAX_NICK_LEN + 1];
-  char recipient_ch_name[MAX_CHANNEL_NAME_LEN + 1];
-  strcpy(recipient_nick, msg->params[0]);
-  strcpy(recipient_ch_name, msg->params[0]);
-  pthread_mutex_lock(&ctx->users_lock);
-  HASH_FIND_STR(ctx->users, recipient_nick, recipient);
-  pthread_mutex_unlock(&ctx->users_lock);
-  recipient_channel = find_channel_in_user(ctx, user, recipient_ch_name);
-  if (recipient || recipient_channel)
-  {
-      sprintf(buffer, "%s!%s@%s", user->nickname, user->username, user->hostname);
-      chirc_message_construct(&reply_msg, buffer, msg->cmd);
-      for (int i = 0; i < msg->nparams - 1; i++)
-      {
-          chirc_message_add_parameter(&reply_msg, msg->params[i], false);
-      }
-      chirc_message_add_parameter(&reply_msg, msg->params[msg->nparams - 1], true);
-      reply_msg.longlast = msg->longlast;
-      if (recipient)
-      {
-          send_message(&reply_msg, recipient);
-      }
-      else
-      {
-          struct chirc_user_t *user_in_channel;
-          struct chirc_user_cont_t*user_container;
-          pthread_mutex_lock(&recipient_channel->lock);
-          for (user_container=recipient_channel->users; user_container != NULL;
-                                         user_container=user_container->hh.next)
-          {
-              pthread_mutex_unlock(&recipient_channel->lock);
-              user_in_channel = find_user_in_channel(ctx, recipient_channel,
-                                                    user_container->nickname);
-              pthread_mutex_lock(&recipient_channel->lock);
-              if (user != user_in_channel)
-              {
-                  send_message(&reply_msg, user_in_channel);
-              }
-          }
-          pthread_mutex_unlock(&recipient_channel->lock);
-      }
-  }
-  return 0;
+    int error;
+    if ((error = handle_not_registered(ctx, user)))
+    {
+        return error;
+    }
+    struct chirc_message_t reply_msg;
+    if (msg->nparams == 0 || msg->nparams == 1)
+    {
+      return 1;
+    }
+    struct chirc_user_t *recipient;
+    struct chirc_channel_t *recipient_channel;
+    char buffer[MAX_MSG_LEN + 1] = {0};
+    char recipient_nick[MAX_NICK_LEN + 1];
+    char recipient_ch_name[MAX_CHANNEL_NAME_LEN + 1];
+    strcpy(recipient_nick, msg->params[0]);
+    strcpy(recipient_ch_name, msg->params[0]);
+    pthread_mutex_lock(&ctx->users_lock);
+    HASH_FIND_STR(ctx->users, recipient_nick, recipient);
+    pthread_mutex_unlock(&ctx->users_lock);
+    recipient_channel = find_channel_in_user(ctx, user, recipient_ch_name);
+    if (recipient || recipient_channel)
+    {
+        sprintf(buffer, "%s!%s@%s", user->nickname, user->username, user->hostname);
+        chirc_message_construct(&reply_msg, buffer, msg->cmd);
+        for (int i = 0; i < msg->nparams - 1; i++)
+        {
+            chirc_message_add_parameter(&reply_msg, msg->params[i], false);
+        }
+        chirc_message_add_parameter(&reply_msg, msg->params[msg->nparams - 1], true);
+        reply_msg.longlast = msg->longlast;
+        if (recipient)
+        {
+            send_message(&reply_msg, recipient);
+        }
+        else
+        {
+            struct chirc_user_t *user_in_channel;
+            struct chirc_user_cont_t*user_container;
+            pthread_mutex_lock(&recipient_channel->lock);
+            for (user_container=recipient_channel->users; user_container != NULL;
+                                           user_container=user_container->hh.next)
+            {
+                pthread_mutex_unlock(&recipient_channel->lock);
+                user_in_channel = find_user_in_channel(ctx, recipient_channel,
+                                                      user_container->nickname);
+                pthread_mutex_lock(&recipient_channel->lock);
+                if (user != user_in_channel)
+                {
+                    send_message(&reply_msg, user_in_channel);
+                }
+            }
+            pthread_mutex_unlock(&recipient_channel->lock);
+        }
+    }
+    return 0;
 }
 
 int handle_PING(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_user_t *user)
@@ -872,17 +872,6 @@ int handle_PART(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_use
     char recipient_ch_name[MAX_CHANNEL_NAME_LEN + 1];
     strcpy(recipient_ch_name, msg->params[0]);
     recipient_channel = find_channel_in_user(ctx, user, recipient_ch_name);
-    // chilog(TRACE, "Channel Exists: %i", recipient_channel != NULL);
-    // chilog(TRACE, "Channel: %s", recipient_channel->channel_name);
-    // chilog(TRACE, "Channel Member Number: %i", recipient_channel->nusers);
-    // struct chirc_user_t *user_test = find_user_in_channel(ctx, recipient_channel, "nick2");
-    // chilog(TRACE, "nick1 in Channel: %i", user_test != NULL);
-    // struct chirc_user_cont_t *user_container;
-    // for (user_container=recipient_channel->users; user_container != NULL;
-    //                                user_container=user_container->hh.next)
-    // {
-    //     chilog(TRACE, "user found: %s", user_container->nickname);
-    // }
     pthread_mutex_lock(&ctx->channels_lock);
     HASH_FIND_STR(ctx->channels, recipient_ch_name, channel_exists);
     pthread_mutex_unlock(&ctx->channels_lock);
@@ -890,21 +879,13 @@ int handle_PART(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_use
     {
         sprintf(buffer, "%s!%s@%s", user->nickname, user->username, user->hostname);
         chirc_message_construct(&reply_msg, buffer, msg->cmd);
-        if (msg->nparams > 1)
+
+        for (int i = 0; i < msg->nparams - 1; i++)
         {
-            for (int i = 0; i < msg->nparams - 1; i++)
-            {
-                chirc_message_add_parameter(&reply_msg, msg->params[i], false);
-            }
-            chirc_message_add_parameter(&reply_msg, msg->params[msg->nparams - 1], true);
-            reply_msg.longlast = msg->longlast;
+            chirc_message_add_parameter(&reply_msg, msg->params[i], false);
         }
-        else
-        {
-          chirc_message_add_parameter(&reply_msg, msg->params[0], false);
-          chirc_message_add_parameter(&reply_msg, user->nickname, true);
-          reply_msg.longlast = msg->longlast;
-        }
+        chirc_message_add_parameter(&reply_msg, msg->params[msg->nparams - 1], true);
+        reply_msg.longlast = msg->longlast;
 
         struct chirc_user_t *user_in_channel;
         struct chirc_user_cont_t *user_container;
@@ -916,10 +897,7 @@ int handle_PART(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_use
             user_in_channel = find_user_in_channel(ctx, recipient_channel,
                                                   user_container->nickname);
             pthread_mutex_lock(&recipient_channel->lock);
-            if (user != user_in_channel)
-            {
-                send_message(&reply_msg, user_in_channel);
-            }
+            send_message(&reply_msg, user_in_channel);
         }
         pthread_mutex_unlock(&recipient_channel->lock);
 
