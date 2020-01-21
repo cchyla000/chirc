@@ -400,10 +400,8 @@ int handle_PRIVMSG(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_
     strcpy(recipient_ch_name, msg->params[0]);
     pthread_mutex_lock(&ctx->users_lock);
     HASH_FIND_STR(ctx->users, recipient_nick, recipient);
+    HASH_FIND_STR(user->channels, recipient_ch_name, recipient_channel);
     pthread_mutex_unlock(&ctx->users_lock);
-    pthread_mutex_lock(&ctx->channels_lock);
-    HASH_FIND_STR(ctx->channels, recipient_ch_name, recipient_channel);
-    pthread_mutex_unlock(&ctx->channels_lock);
     if (recipient || recipient_channel)
     {
         sprintf(buffer, "%s!%s@%s", user->nickname, user->username, user->hostname);
