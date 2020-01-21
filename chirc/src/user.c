@@ -139,7 +139,6 @@ void *service_user(void *args)
 
     pthread_mutex_lock(&ctx->users_lock);
     ctx->unknown_clients++;
-    ctx->connected_clients++;
     pthread_mutex_unlock(&ctx->users_lock);
 
     while(1)
@@ -231,7 +230,10 @@ void destroy_user(struct chirc_user_t *user, struct ctx_t *ctx)
     {
         ctx->unknown_clients--;
     }
-    ctx->connected_clients--;
+    else
+    {
+        ctx->connected_clients--;
+    }
 
     if (user->is_registered)
     {
