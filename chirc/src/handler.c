@@ -804,16 +804,19 @@ int handle_JOIN(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_use
            * and ignore if they are
            */
           user_in_channel = find_user_in_channel(ctx, channel, user->nickname);
-          if (user_in_channel) {
-            return 0;
+          if (user_in_channel) 
+          {
+              return 0;
           }
+          add_user_to_channel(channel, user);
       }
       else
       {
           /* channel does not exist, create channel */
           channel = create_channel(ctx, channel_name);
+          add_user_to_channel(channel, user);
+          
       }
-      add_user_to_channel(channel, user);
 
       sprintf(buffer, "%s!%s@%s", user->nickname, user->username, user->hostname);
       chirc_message_construct(&reply_msg, buffer, msg->cmd);
@@ -945,11 +948,60 @@ int handle_PART(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_use
 
 int handle_MODE(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_user_t *user)
 {
-    int error = handle_not_registered(ctx, user);
-    if (error)
+    int error;
+
+    if ((error = handle_not_registered(ctx, user)) ||
+        (error = handle_not_enough_parameters(ctx, msg, user, 3)))
     {
         return error;
     }
+
+    struct chirc_channel_t *channel;
+    struct chirc_message_t reply_msg;
+    struct chirc_user_t *user_in_channel;
+    struct chirc_user_cont_t *user_container;
+
+    pthread_mutex_lock(&ctx->channels_lock);
+    HASH_FIND_STR(ctx->channels, msg->params[0], channel);
+    pthread_mutex_unlock(&ctx->channels_lock);
+
+    if (channel)
+    {
+        /* channel exists, check if user in channel
+         * and ignore if they are
+         */
+        user_in_channel = find_user_in_channel(ctx, channel, msg->params[2]);
+        if (user_in_channel) 
+        {
+            return 0;
+        }
+        else  // User not in channel
+        {
+            chirc_message_construct(&reply_msg, ctx->server_name, ERR_USERNOTINCHANNEL);
+            chirc_message_add_parameter(&reply_msg, user->nickname, false);
+            chirc_message_add_parameter(&reply_msg, msg->params[3], false);
+            chirc_message_add_parameter(&reply_msg, msg->params[0], false);
+            chirc_message_add_parameter(&reply_msg, "They aren't on that channel", true);
+            error = send_message(&reply_msg, user); 
+            if (error)
+            {
+                return error;
+            }
+        }
+    }
+    else  // Channel doesn't exist
+    {
+        chirc_message_construct(&reply_msg, ctx->server_name, ERR_NOSUCHCHANNEL);
+        chirc_message_add_parameter(&reply_msg, user->nickname, false);
+        chirc_message_add_parameter(&reply_msg, msg->params[0], false);
+        chirc_message_add_parameter(&reply_msg, "No such channel", true);
+        error = send_message(&reply_msg, user); 
+        if (error)
+        {
+            return error;
+        }
+    }
+
     return 0;
 }
 
@@ -992,7 +1044,7 @@ int handle_OPER(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_use
         pthread_mutex_lock(&ctx->users_lock);
         pthread_mutex_lock(&user->lock);
         ctx->num_operators++;
-        user->is_operator = true; 
+        user->is_irc_operator = true; 
         pthread_mutex_unlock(&user->lock);
         pthread_mutex_unlock(&ctx->users_lock);
 
@@ -1009,3 +1061,5 @@ int handle_OPER(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_use
 
     return 0;
 }
+
+

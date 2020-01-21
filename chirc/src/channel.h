@@ -16,6 +16,7 @@ struct chirc_channel_cont_t {
 
 struct chirc_user_cont_t {
     char nickname[MAX_NICK_LEN + 1];
+    bool is_channel_operator;
     UT_hash_handle hh;
 };
 
