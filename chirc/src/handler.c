@@ -422,8 +422,8 @@ int handle_PRIVMSG(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_
     strcpy(recipient_ch_name, msg->params[0]);
     pthread_mutex_lock(&ctx->users_lock);
     HASH_FIND_STR(ctx->users, recipient_nick, recipient);
-    HASH_FIND_STR(user->channels, recipient_ch_name, recipient_channel);
     pthread_mutex_unlock(&ctx->users_lock);
+    recipient_channel = find_channel_in_user(ctx, user, recipient_ch_name);
     pthread_mutex_lock(&ctx->channels_lock);
     HASH_FIND_STR(ctx->channels, recipient_ch_name, channel_exists);
     pthread_mutex_unlock(&ctx->channels_lock);
@@ -444,14 +444,21 @@ int handle_PRIVMSG(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_
         else
         {
             struct chirc_user_t *user_in_channel;
-            for (user_in_channel=recipient_channel->users; user_in_channel != NULL;
-                                           user_in_channel=user_in_channel->hh.next)
+            struct chirc_user_cont_t*user_container;
+            pthread_mutex_lock(&recipient_channel->lock);
+            for (user_container=recipient_channel->users; user_container != NULL;
+                                           user_container=user_container->hh.next)
             {
+                pthread_mutex_unlock(&recipient_channel->lock);
+                user_in_channel = find_user_in_channel(ctx, recipient_channel,
+                                                      user_container->nickname);
+                pthread_mutex_lock(&recipient_channel->lock);
                 if (user != user_in_channel)
                 {
                     send_message(&reply_msg, user_in_channel);
                 }
             }
+            pthread_mutex_unlock(&recipient_channel->lock);
         }
     }
     else if (channel_exists)
@@ -510,8 +517,8 @@ int handle_NOTICE(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_u
   strcpy(recipient_ch_name, msg->params[0]);
   pthread_mutex_lock(&ctx->users_lock);
   HASH_FIND_STR(ctx->users, recipient_nick, recipient);
-  HASH_FIND_STR(user->channels, recipient_ch_name, recipient_channel);
   pthread_mutex_unlock(&ctx->users_lock);
+  recipient_channel = find_channel_in_user(ctx, user, recipient_ch_name);
   if (recipient || recipient_channel)
   {
       sprintf(buffer, "%s!%s@%s", user->nickname, user->username, user->hostname);
@@ -529,14 +536,21 @@ int handle_NOTICE(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_u
       else
       {
           struct chirc_user_t *user_in_channel;
-          for (user_in_channel=recipient_channel->users; user_in_channel != NULL;
-                                         user_in_channel=user_in_channel->hh.next)
+          struct chirc_user_cont_t*user_container;
+          pthread_mutex_lock(&recipient_channel->lock);
+          for (user_container=recipient_channel->users; user_container != NULL;
+                                         user_container=user_container->hh.next)
           {
+              pthread_mutex_unlock(&recipient_channel->lock);
+              user_in_channel = find_user_in_channel(ctx, recipient_channel,
+                                                    user_container->nickname);
+              pthread_mutex_lock(&recipient_channel->lock);
               if (user != user_in_channel)
               {
                   send_message(&reply_msg, user_in_channel);
               }
           }
+          pthread_mutex_unlock(&recipient_channel->lock);
       }
   }
   return 0;
@@ -787,15 +801,13 @@ int handle_JOIN(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_use
     else
     {
       struct chirc_user_t *user_in_channel;
+      struct chirc_user_cont_t *user_container;
       if (channel)
       {
           /* channel exists, check if user in channel
            * and ignore if they are
            */
-          struct chirc_user_t* user_in_channel;
-          pthread_mutex_lock(&channel->lock);
-          HASH_FIND_STR(channel->users, user->nickname, user_in_channel);
-          pthread_mutex_unlock(&channel->lock);
+          user_in_channel = find_user_in_channel(ctx, channel, user->nickname);
           if (user_in_channel) {
             return 0;
           }
@@ -814,9 +826,13 @@ int handle_JOIN(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_use
           chirc_message_add_parameter(&reply_msg, msg->params[i], false);
       }
       pthread_mutex_lock(&channel->lock);
-      for(user_in_channel=channel->users; user_in_channel != NULL;
-                                     user_in_channel=user_in_channel->hh.next)
+      for (user_container=channel->users; user_container != NULL;
+                                     user_container=user_container->hh.next)
       {
+          pthread_mutex_unlock(&channel->lock);
+          user_in_channel = find_user_in_channel(ctx, channel,
+                                                      user_container->nickname);
+          pthread_mutex_lock(&channel->lock);
           send_message(&reply_msg, user_in_channel);
       }
       pthread_mutex_unlock(&channel->lock);
@@ -859,9 +875,18 @@ int handle_PART(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_use
     char buffer[MAX_MSG_LEN + 1] = {0};
     char recipient_ch_name[MAX_CHANNEL_NAME_LEN + 1];
     strcpy(recipient_ch_name, msg->params[0]);
-    pthread_mutex_lock(&user->lock);
-    HASH_FIND_STR(user->channels, recipient_ch_name, recipient_channel);
-    pthread_mutex_unlock(&user->lock);
+    recipient_channel = find_channel_in_user(ctx, user, recipient_ch_name);
+    // chilog(TRACE, "Channel Exists: %i", recipient_channel != NULL);
+    // chilog(TRACE, "Channel: %s", recipient_channel->channel_name);
+    // chilog(TRACE, "Channel Member Number: %i", recipient_channel->nusers);
+    // struct chirc_user_t *user_test = find_user_in_channel(ctx, recipient_channel, "nick2");
+    // chilog(TRACE, "nick1 in Channel: %i", user_test != NULL);
+    // struct chirc_user_cont_t *user_container;
+    // for (user_container=recipient_channel->users; user_container != NULL;
+    //                                user_container=user_container->hh.next)
+    // {
+    //     chilog(TRACE, "user found: %s", user_container->nickname);
+    // }
     pthread_mutex_lock(&ctx->channels_lock);
     HASH_FIND_STR(ctx->channels, recipient_ch_name, channel_exists);
     pthread_mutex_unlock(&ctx->channels_lock);
@@ -886,14 +911,21 @@ int handle_PART(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_use
         }
 
         struct chirc_user_t *user_in_channel;
-        for (user_in_channel=recipient_channel->users; user_in_channel != NULL;
-                                       user_in_channel=user_in_channel->hh.next)
+        struct chirc_user_cont_t *user_container;
+        pthread_mutex_lock(&recipient_channel->lock);
+        for (user_container=recipient_channel->users; user_container != NULL;
+                                       user_container=user_container->hh.next)
         {
+            pthread_mutex_unlock(&recipient_channel->lock);
+            user_in_channel = find_user_in_channel(ctx, recipient_channel,
+                                                  user_container->nickname);
+            pthread_mutex_lock(&recipient_channel->lock);
             if (user != user_in_channel)
             {
                 send_message(&reply_msg, user_in_channel);
             }
         }
+        pthread_mutex_unlock(&recipient_channel->lock);
 
         remove_user_from_channel(recipient_channel, user);
         if (recipient_channel->nusers == 0)
