@@ -225,7 +225,6 @@ void destroy_user(struct chirc_user_t *user, struct ctx_t *ctx)
     /* Remove user from the ctx hash of users */ 
     pthread_mutex_lock(&ctx->users_lock);
     ctx->connected_clients--;
-    chilog(INFO, "Removing user w/nick %s from user hash", user->nickname);
     if (user->is_registered)
     {
         HASH_DEL(ctx->users, user);
