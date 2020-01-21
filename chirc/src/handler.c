@@ -972,7 +972,40 @@ int handle_OPER(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_use
         return error;
     }
 
+    struct chirc_message_t reply_msg;
+    chirc_message_clear(&reply_msg);
+    
 
+    if (strcmp(ctx->password, msg->params[1]))  // Password does not match
+    {
+        chirc_message_construct(&reply_msg, ctx->server_name, ERR_PASSWDMISMATCH);
+        chirc_message_add_parameter(&reply_msg, user->nickname, false);
+        chirc_message_add_parameter(&reply_msg, "Password incorrect", true);
+        error = send_message(&reply_msg, user);
+        if (error)
+        {
+            return error;
+        }
+    }
+    else
+    {
+        pthread_mutex_lock(&ctx->users_lock);
+        pthread_mutex_lock(&user->lock);
+        ctx->num_operators++;
+        user->is_operator = true; 
+        pthread_mutex_unlock(&user->lock);
+        pthread_mutex_unlock(&ctx->users_lock);
+
+        chirc_message_construct(&reply_msg, ctx->server_name, RPL_YOUREOPER);
+        chirc_message_add_parameter(&reply_msg, user->nickname, false);
+        chirc_message_add_parameter(&reply_msg, "You are now an IRC operator",
+                                    true);
+        error = send_message(&reply_msg, user);
+        if (error)
+        {
+            return error;
+        }
+    }
 
     return 0;
 }

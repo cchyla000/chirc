@@ -140,6 +140,7 @@ int main(int argc, char *argv[])
     ctx->channels = NULL;
     ctx->unknown_clients = 0;
     ctx->connected_clients = 0;
+    ctx->num_operators = 0;
     strncpy(ctx->password, passwd, MAX_MSG_LEN);
     pthread_mutex_init(&ctx->users_lock, NULL);
     pthread_mutex_init(&ctx->channels_lock, NULL);

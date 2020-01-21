@@ -236,6 +236,11 @@ void destroy_user(struct chirc_user_t *user, struct ctx_t *ctx)
         ctx->connected_clients--;
     }
 
+    if (user->is_operator)
+    {
+        ctx->num_operators--;
+    }
+
     if (user->is_registered)
     {
         HASH_DEL(ctx->users, user);
