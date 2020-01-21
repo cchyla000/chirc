@@ -322,7 +322,7 @@ int handle_USER(struct ctx_t *ctx, struct chirc_message_t *msg,
     else  // User not registered
     {
         strcpy(user->username, msg->params[0]);
-
+        strncpy(user->realusername, msg->params[3], MAX_HOST_LEN);
         if (*user->nickname)  // Registration complete
         {
             chilog(TRACE, "completing registration");
@@ -589,6 +589,69 @@ int handle_WHOIS(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_us
     {
         return error;
     }
+
+    struct chirc_user_t *found_user; 
+    struct chirc_message_t reply_msg;
+    chirc_message_clear(&reply_msg);
+
+    if (msg->nparams < 1)  // Assignment says to ignore for now...
+    {
+        return 0;
+    }
+
+    HASH_FIND_STR(ctx->users, msg->params[0], found_user);
+
+    if (!found_user)
+    {
+        chirc_message_construct(&reply_msg, ctx->server_name, ERR_NOSUCHNICK); 
+        chirc_message_add_parameter(&reply_msg, msg->params[0], false);
+        chirc_message_add_parameter(&reply_msg, "No such nick/channel", true); 
+        error = send_message(&reply_msg, user);
+        if (error)
+        {
+            return error;
+        }
+    }
+    else
+    {
+        /* RPL_WHOISUSER */
+        chirc_message_construct(&reply_msg, ctx->server_name, RPL_WHOISUSER); 
+        chirc_message_add_parameter(&reply_msg, found_user->nickname, false);
+        chirc_message_add_parameter(&reply_msg, found_user->username, false);
+        chirc_message_add_parameter(&reply_msg, found_user->hostname, false);
+        chirc_message_add_parameter(&reply_msg, "*", false);
+        chirc_message_add_parameter(&reply_msg, found_user->realusername, true);
+        error = send_message(&reply_msg, user);
+        if (error)
+        {
+            return error;
+        }
+        chirc_message_clear(&reply_msg); 
+
+        /* RPL_WHOISSERVER */
+        chirc_message_construct(&reply_msg, ctx->server_name, RPL_WHOISSERVER); 
+        chirc_message_add_parameter(&reply_msg, user->nickname, false);
+        chirc_message_add_parameter(&reply_msg, ctx->server_name, false);
+        chirc_message_add_parameter(&reply_msg, "server info", true);
+        error = send_message(&reply_msg, user);
+        if (error)
+        {
+            return error;
+        }
+        chirc_message_clear(&reply_msg); 
+
+        /* RPL_ENDOFWHOIS */
+        chirc_message_construct(&reply_msg, ctx->server_name, RPL_ENDOFWHOIS); 
+        chirc_message_add_parameter(&reply_msg, user->nickname, false);
+        chirc_message_add_parameter(&reply_msg, "End of WHOIS list", true);
+        error = send_message(&reply_msg, user);
+        if (error)
+        {
+            return error;
+        }
+
+    }
+
     return 0;
 }
 

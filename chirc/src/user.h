@@ -15,8 +15,11 @@ struct chirc_user_t {
     char nickname[MAX_NICK_LEN + 1];
     char username[MAX_USER_LEN + 1];
     char hostname[MAX_HOST_LEN + 1];
+    /* Host name limited to 63 chars in specifications, so 
+       real user name can realistically be similarly truncated: */ 
+    char realusername[MAX_HOST_LEN + 1];  
     int socket;
-    struct chirc_channel_t *channels; // hash of channels user is a part of
+    struct chirc_channel_t *channels; // Hash of channels user is a part of
     bool is_registered;
     pthread_mutex_t lock;
     UT_hash_handle hh;
