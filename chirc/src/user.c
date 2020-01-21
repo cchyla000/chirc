@@ -123,6 +123,7 @@ void *service_user(void *args)
     user->channels = NULL;
     user->is_registered = false;
     user->is_unknown = true;
+    user->is_operator = false;
     chilog(TRACE, "ln 120: %d", user->is_registered);
     pthread_mutex_init(&user->lock, NULL);
     set_host_name(user, wa);
