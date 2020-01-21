@@ -242,7 +242,9 @@ void destroy_user(struct chirc_user_t *user, struct ctx_t *ctx)
     }
     pthread_mutex_unlock(&ctx->users_lock);
 
+
     /* Remove user from all of the channels it is in */
+/*
     HASH_ITER(hh, user->channels, c, tmp)
     {
         pthread_mutex_lock(&c->lock);
@@ -251,6 +253,6 @@ void destroy_user(struct chirc_user_t *user, struct ctx_t *ctx)
         pthread_mutex_unlock(&user->lock);
         pthread_mutex_unlock(&c->lock);
     } 
-
+*/
     free(user);
 }
