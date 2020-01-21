@@ -149,7 +149,7 @@ void *service_user(void *args)
         if (nbytes == 0)
         {
             close(client_socket);
-            destroy_user_and_exit(user, ctx);
+            destroy_user(user, ctx);
             free(wa);
             pthread_exit(NULL);
         }
@@ -174,8 +174,9 @@ void *service_user(void *args)
                     if (error == -1)
                     {
                         close(client_socket);
-                        destroy_user_and_exit(user, ctx);
+                        destroy_user(user, ctx);
                         free(wa);
+                        pthread_exit(NULL);
                     }
                     break;
                 }
@@ -217,7 +218,7 @@ void *service_user(void *args)
 
 }
 
-void destroy_user_and_exit(struct chirc_user_t *user, struct ctx_t *ctx)
+void destroy_user(struct chirc_user_t *user, struct ctx_t *ctx)
 {
     struct chirc_channel_t *c;
     struct chirc_channel_t *tmp; 
@@ -242,6 +243,4 @@ void destroy_user_and_exit(struct chirc_user_t *user, struct ctx_t *ctx)
     pthread_mutex_unlock(&ctx->users_lock);
 
     free(user);
-    pthread_exit(NULL);
-
 }

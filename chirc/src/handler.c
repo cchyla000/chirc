@@ -98,11 +98,17 @@ static int send_welcome_messages(struct ctx_t *ctx, struct chirc_user_t *user)
     }
     chirc_message_clear(&msg);
 
-    /* Send RPL_LUSERCLIENT */
+    pthread_mutex_lock(&ctx->users_lock);
+    int registered_users = HASH_COUNT(ctx->users);
+    int connected_clients = ctx->connected_clients;
+    int unknown_clients = connected_clients - registered_users;
+    pthread_mutex_unlock(&ctx->users_lock);
+
+    /* RPL_LUSERCLIENT */
     chirc_message_construct(&msg, ctx->server_name, RPL_LUSERCLIENT);
     chirc_message_add_parameter(&msg, user->nickname, false);
-    chirc_message_add_parameter(&msg, "There are 1 users and 0 services"
-                                " on 1 servers", true);
+    sprintf(param_buffer, "There are %d users and %d services on %d servers", registered_users, 0, 1);
+    chirc_message_add_parameter(&msg, param_buffer, true);
     error = send_message(&msg, user);
     if (error)
     {
@@ -125,7 +131,8 @@ static int send_welcome_messages(struct ctx_t *ctx, struct chirc_user_t *user)
     /* Send RPL_LUSERUNKNOWN */
     chirc_message_construct(&msg, ctx->server_name, RPL_LUSERUNKNOWN);
     chirc_message_add_parameter(&msg, user->nickname, false);
-    chirc_message_add_parameter(&msg, "0", false);
+    sprintf(param_buffer, "%d", unknown_clients);
+    chirc_message_add_parameter(&msg, param_buffer, false);
     chirc_message_add_parameter(&msg, "unknown connection(s)", true);
     error = send_message(&msg, user);
     if (error)
@@ -137,7 +144,13 @@ static int send_welcome_messages(struct ctx_t *ctx, struct chirc_user_t *user)
     /* Send RPL_LUSERCHANNELS */
     chirc_message_construct(&msg, ctx->server_name, RPL_LUSERCHANNELS);
     chirc_message_add_parameter(&msg, user->nickname, false);
-    chirc_message_add_parameter(&msg, "0", false);
+
+    pthread_mutex_lock(&ctx->channels_lock);
+    int num_channels = HASH_COUNT(ctx->channels);
+    pthread_mutex_unlock(&ctx->channels_lock);
+
+    sprintf(param_buffer, "%d", num_channels);
+    chirc_message_add_parameter(&msg, param_buffer, false);
     chirc_message_add_parameter(&msg, "channels formed", true);
     error = send_message(&msg, user);
     if (error)
@@ -149,7 +162,9 @@ static int send_welcome_messages(struct ctx_t *ctx, struct chirc_user_t *user)
     /* Send RPL_LUSERME */
     chirc_message_construct(&msg, ctx->server_name, RPL_LUSERME);
     chirc_message_add_parameter(&msg, user->nickname, false);
-    chirc_message_add_parameter(&msg, "I have 1 clients and 1 servers", true);
+    sprintf(param_buffer, "I have %d clients and 1 servers",
+            connected_clients);
+    chirc_message_add_parameter(&msg, param_buffer, true);
     error = send_message(&msg, user);
     if (error)
     {
@@ -166,7 +181,6 @@ static int send_welcome_messages(struct ctx_t *ctx, struct chirc_user_t *user)
     {
         return error;
     }
-    chirc_message_clear(&msg);
 
 
     return 0;
@@ -299,7 +313,7 @@ int handle_USER(struct ctx_t *ctx, struct chirc_message_t *msg,
     else if (user->is_registered)
     {
         chirc_message_construct(&reply_msg, ctx->server_name,
-                                ERR_ALREADYREGISTRED);
+                                ERR_ALREADYREGISTERED);
         chirc_message_add_parameter(&reply_msg, user->nickname, false);
         chirc_message_add_parameter(&reply_msg, "Unauthorized command "
                                     "(already registered)", true);
@@ -334,19 +348,19 @@ int handle_QUIT(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_use
     chirc_message_construct(&reply_msg, NULL, "ERROR");
     if (msg->nparams < 1)
     {
-        chirc_message_add_parameter(&reply_msg, "Closing Link: (Client Quit)",
-                                    true);
+        sprintf(param_buffer, "Closing Link: %s (Client Quit)", 
+                user->hostname);
+        chirc_message_add_parameter(&reply_msg, param_buffer, true);
     }
     else
     {
-        sprintf(param_buffer, "Closing Link: (%s)", msg->params[0]);
+        sprintf(param_buffer, "Closing Link: %s (%s)", user->hostname,
+                msg->params[0]);
         chirc_message_add_parameter(&reply_msg, param_buffer, true);
     }
-    if (error = send_message(&reply_msg, user));
-    {
-        return error;
-    }
-    return error;
+
+    send_message(&reply_msg, user);
+    return -1;  // return error code so user is destroyed and exits
 }
 
 int handle_PRIVMSG(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_user_t *user)

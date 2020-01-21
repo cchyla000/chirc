@@ -25,10 +25,9 @@ struct chirc_user_t {
 void *service_user(void *args);
 
 /*
- * Removes user from all of its channels, frees the user struct
- * and worker_args struct passed to the thread handling this user,
- * and destroys the thread
+ * Removes user from all of its channels and frees the 
+ * user struct associated with the thread handling this user,
  */
-void destroy_user_and_exit(struct chirc_user_t *user, struct ctx_t *ctx);
+void destroy_user(struct chirc_user_t *user, struct ctx_t *ctx);
 
 #endif /* CHIRC_USER_H */
