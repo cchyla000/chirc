@@ -41,10 +41,6 @@ int remove_user_from_channel(struct chirc_channel_t *channel, struct chirc_user_
     channel->nusers--;
     pthread_mutex_unlock(&user->lock);
     pthread_mutex_unlock(&channel->lock);
-    if (channel->nusers == 0)
-    {
-        destroy_channel(ctx, channel);
-    }
     return 0;
 }
 
