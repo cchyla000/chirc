@@ -715,6 +715,7 @@ int handle_WHOIS(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_us
         /* RPL_WHOISUSER */
         chirc_message_construct(&reply_msg, ctx->server_name, RPL_WHOISUSER);
         chirc_message_add_parameter(&reply_msg, user->nickname, false);
+        chirc_message_add_parameter(&reply_msg, msg->params[0], false);
         chirc_message_add_parameter(&reply_msg, found_user->nickname, false);
         chirc_message_add_parameter(&reply_msg, found_user->username, false);
         chirc_message_add_parameter(&reply_msg, found_user->hostname, false);
@@ -745,6 +746,7 @@ int handle_WHOIS(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_us
         /* RPL_ENDOFWHOIS */
         chirc_message_construct(&reply_msg, ctx->server_name, RPL_ENDOFWHOIS); 
         chirc_message_add_parameter(&reply_msg, user->nickname, false);
+        chirc_message_add_parameter(&reply_msg, msg->params[0], false);
         chirc_message_add_parameter(&reply_msg, "End of WHOIS list", true);
         error = send_message(&reply_msg, user);
         if (error)
