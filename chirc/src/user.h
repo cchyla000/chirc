@@ -21,6 +21,8 @@ struct chirc_user_t {
     int socket;
     struct chirc_channel_cont_t *channels; // Hash of channels user is a part of
     bool is_registered;
+    bool is_unknown;
+    bool is_operator;
     pthread_mutex_t lock;
     UT_hash_handle hh;
 };

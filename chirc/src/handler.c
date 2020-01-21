@@ -100,8 +100,8 @@ static int send_welcome_messages(struct ctx_t *ctx, struct chirc_user_t *user)
 
     pthread_mutex_lock(&ctx->users_lock);
     int registered_users = HASH_COUNT(ctx->users);
+    int unknown_clients = ctx->unknown_clients;
     int connected_clients = ctx->connected_clients;
-    int unknown_clients = connected_clients - registered_users;
     pthread_mutex_unlock(&ctx->users_lock);
 
     /* RPL_LUSERCLIENT */
@@ -163,7 +163,7 @@ static int send_welcome_messages(struct ctx_t *ctx, struct chirc_user_t *user)
     chirc_message_construct(&msg, ctx->server_name, RPL_LUSERME);
     chirc_message_add_parameter(&msg, user->nickname, false);
     sprintf(param_buffer, "I have %d clients and 1 servers",
-            registered_users);
+            connected_clients);
     chirc_message_add_parameter(&msg, param_buffer, true);
     error = send_message(&msg, user);
     if (error)
@@ -247,6 +247,15 @@ int handle_NICK(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_use
     int error = 0;
     char param_buffer[MAX_MSG_LEN] = {0};
 
+    if (user->is_unknown)
+    {
+        user->is_unknown = false;
+        pthread_mutex_lock(&ctx->users_lock);
+        ctx->unknown_clients--;
+        ctx->connected_clients++;
+        pthread_mutex_unlock(&ctx->users_lock);
+    }
+
     if (msg->nparams < 1)  // No nickname given
     {
         chirc_message_construct(&reply_msg, ctx->server_name,
@@ -257,7 +266,7 @@ int handle_NICK(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_use
         return error;
     }
 
-    strcpy(nick, msg->params[0]);
+    strncpy(nick, msg->params[0], MAX_NICK_LEN);
     HASH_FIND_STR(ctx->users, nick, found_user);
 
     if (found_user)  // Nickname already in use
@@ -293,7 +302,6 @@ int handle_NICK(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_use
 
         if (*user->username)  // Registration complete
         {
-            chilog(TRACE, "completing registration");
             user->is_registered = true;
             pthread_mutex_lock(&ctx->users_lock);
             HASH_ADD_STR(ctx->users, nickname, user);
@@ -312,6 +320,15 @@ int handle_USER(struct ctx_t *ctx, struct chirc_message_t *msg,
     struct chirc_message_t reply_msg;
     chirc_message_clear (&reply_msg);
     int error = 0;
+
+    if (user->is_unknown)
+    {
+        user->is_unknown = false;
+        pthread_mutex_lock(&ctx->users_lock);
+        ctx->unknown_clients--;
+        ctx->connected_clients++;
+        pthread_mutex_unlock(&ctx->users_lock);
+    }
 
     if ((error = handle_not_enough_parameters(ctx, msg, user, 4)))
     {
@@ -332,7 +349,6 @@ int handle_USER(struct ctx_t *ctx, struct chirc_message_t *msg,
         strncpy(user->realusername, msg->params[3], MAX_HOST_LEN);
         if (*user->nickname)  // Registration complete
         {
-            chilog(TRACE, "completing registration");
             user->is_registered = true;
             pthread_mutex_lock(&ctx->users_lock);
             HASH_ADD_STR(ctx->users, nickname, user);
@@ -355,8 +371,8 @@ int handle_QUIT(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_use
     chirc_message_construct(&reply_msg, NULL, "ERROR");
     if (msg->nparams < 1)
     {
-        sprintf(param_buffer, "Closing Link: %s (Client Quit)",
-                user->hostname);
+        sprintf(param_buffer, "Closing Link: %s (Client Quit)", 
+                user->hostname); 
         chirc_message_add_parameter(&reply_msg, param_buffer, true);
     }
     else
@@ -575,30 +591,6 @@ int handle_PING(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_use
         return error;
     }
 
-/*
-    if (msg->nparam < 1)
-    {
-        chirc_message_construct(&reply_msg, ctx->server_name, ERR_NOORIGIN);
-        chirc_message_add_parameter(&reply_msg, "No origin specified", true);
-        error = send_message(&reply_msg, user);
-        if (error)
-        {
-            return error;
-        }
-    }
-    else if (msg->nparam < 2)  // We are target; PONG back at sender
-    {
-        chirc_message_construct(&reply_msg, ctx->server_name, "PONG");
-        chirc_message_add_parameter(&reply_msg, msg->nparam[0], false);
-        chirc_message_add_parameter(&reply_msg, user, false);
-        error = send_message(&reply_msg, user);
-        if (error)
-        {
-            return error;
-        }
-
-    }
-*/
     return 0;
 }
 
@@ -628,8 +620,8 @@ int handle_LUSERS(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_u
 
     pthread_mutex_lock(&ctx->users_lock);
     int registered_users = HASH_COUNT(ctx->users);
+    int unknown_clients = ctx->unknown_clients;
     int connected_clients = ctx->connected_clients;
-    int unknown_clients = connected_clients - registered_users;
     pthread_mutex_unlock(&ctx->users_lock);
 
     sprintf(param_buffer, "There are %d users and %d services on %d servers", registered_users, 0, 1);
@@ -722,9 +714,10 @@ int handle_WHOIS(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_us
     if (!found_user)
     {
         pthread_mutex_unlock(&ctx->users_lock);
-        chirc_message_construct(&reply_msg, ctx->server_name, ERR_NOSUCHNICK);
+        chirc_message_construct(&reply_msg, ctx->server_name, ERR_NOSUCHNICK); 
+        chirc_message_add_parameter(&reply_msg, user->nickname, false);
         chirc_message_add_parameter(&reply_msg, msg->params[0], false);
-        chirc_message_add_parameter(&reply_msg, "No such nick/channel", true);
+        chirc_message_add_parameter(&reply_msg, "No such nick/channel", true); 
         error = send_message(&reply_msg, user);
         if (error)
         {
@@ -735,10 +728,11 @@ int handle_WHOIS(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_us
     {
         /* RPL_WHOISUSER */
         chirc_message_construct(&reply_msg, ctx->server_name, RPL_WHOISUSER);
+        chirc_message_add_parameter(&reply_msg, user->nickname, false);
+        chirc_message_add_parameter(&reply_msg, msg->params[0], false);
         chirc_message_add_parameter(&reply_msg, found_user->nickname, false);
         chirc_message_add_parameter(&reply_msg, found_user->username, false);
         chirc_message_add_parameter(&reply_msg, found_user->hostname, false);
-        chirc_message_add_parameter(&reply_msg, "*", false);
         chirc_message_add_parameter(&reply_msg, found_user->realusername, true);
         error = send_message(&reply_msg, user);
         if (error)
@@ -746,11 +740,12 @@ int handle_WHOIS(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_us
             pthread_mutex_unlock(&ctx->users_lock);
             return error;
         }
-        chirc_message_clear(&reply_msg);
+        chirc_message_clear(&reply_msg); 
 
         /* RPL_WHOISSERVER */
-        chirc_message_construct(&reply_msg, ctx->server_name, RPL_WHOISSERVER);
+        chirc_message_construct(&reply_msg, ctx->server_name, RPL_WHOISSERVER); 
         chirc_message_add_parameter(&reply_msg, user->nickname, false);
+        chirc_message_add_parameter(&reply_msg, msg->params[0], false);
         chirc_message_add_parameter(&reply_msg, ctx->server_name, false);
         chirc_message_add_parameter(&reply_msg, "server info", true);
         error = send_message(&reply_msg, user);
@@ -759,11 +754,12 @@ int handle_WHOIS(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_us
             pthread_mutex_unlock(&ctx->users_lock);
             return error;
         }
-        chirc_message_clear(&reply_msg);
+        chirc_message_clear(&reply_msg); 
 
         /* RPL_ENDOFWHOIS */
-        chirc_message_construct(&reply_msg, ctx->server_name, RPL_ENDOFWHOIS);
+        chirc_message_construct(&reply_msg, ctx->server_name, RPL_ENDOFWHOIS); 
         chirc_message_add_parameter(&reply_msg, user->nickname, false);
+        chirc_message_add_parameter(&reply_msg, msg->params[0], false);
         chirc_message_add_parameter(&reply_msg, "End of WHOIS list", true);
         error = send_message(&reply_msg, user);
         if (error)
@@ -969,10 +965,14 @@ int handle_LIST(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_use
 
 int handle_OPER(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_user_t *user)
 {
-    int error = handle_not_registered(ctx, user);
-    if (error)
+    int error;
+    if ((error = handle_not_registered(ctx, user)) || 
+        (error = handle_not_enough_parameters(ctx, msg, user, 2)))
     {
         return error;
     }
+
+
+
     return 0;
 }
