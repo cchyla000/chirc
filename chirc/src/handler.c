@@ -852,7 +852,8 @@ int handle_PART(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_use
     {
         return error;
     }
-
+    struct chirc_message_t reply_msg;
+    chirc_message_clear(&reply_msg);
     struct chirc_channel_t *recipient_channel;
     struct chirc_channel_t *channel_exists;
     char buffer[MAX_MSG_LEN + 1] = {0};
@@ -894,10 +895,10 @@ int handle_PART(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_use
             }
         }
 
-        remove_user_from_channel(recipient_channel, user)
+        remove_user_from_channel(recipient_channel, user);
         if (recipient_channel->nusers == 0)
         {
-            destroy_channel(ctx, recipient_channel)
+            destroy_channel(ctx, recipient_channel);
         }
     }
     else if (channel_exists)
