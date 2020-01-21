@@ -731,6 +731,7 @@ int handle_WHOIS(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_us
         /* RPL_WHOISSERVER */
         chirc_message_construct(&reply_msg, ctx->server_name, RPL_WHOISSERVER); 
         chirc_message_add_parameter(&reply_msg, user->nickname, false);
+        chirc_message_add_parameter(&reply_msg, msg->params[0], false);
         chirc_message_add_parameter(&reply_msg, ctx->server_name, false);
         chirc_message_add_parameter(&reply_msg, "server info", true);
         error = send_message(&reply_msg, user);
