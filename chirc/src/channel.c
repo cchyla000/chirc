@@ -73,7 +73,8 @@ int destroy_channel(struct ctx_t *ctx, struct chirc_channel_t *channel)
     return 0;
 }
 
-struct chirc_channel_t *find_channel_in_user(struct ctx_t *ctx, struct chirc_user_t *user, char *channel_name)
+struct chirc_channel_t *find_channel_in_user(struct ctx_t *ctx,
+                                  struct chirc_user_t *user, char *channel_name)
 {
     struct chirc_channel_cont_t *channel_container;
     struct chirc_channel_t *channel;
@@ -92,7 +93,8 @@ struct chirc_channel_t *find_channel_in_user(struct ctx_t *ctx, struct chirc_use
     return NULL;
 }
 
-struct chirc_user_t *find_user_in_channel(struct ctx_t *ctx, struct chirc_channel_t *channel, char *nickname)
+struct chirc_user_t *find_user_in_channel(struct ctx_t *ctx,
+                                struct chirc_channel_t *channel, char *nickname)
 {
     struct chirc_user_cont_t *user_container;
     struct chirc_user_t *user;

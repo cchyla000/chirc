@@ -27,7 +27,8 @@ int chirc_message_construct(struct chirc_message_t *msg, char *prefix, char *cmd
 
 /* Given a message and a string, adds the string as a parameter and indicates
  * if the parameter should be treated as a longlast parameter. */
-int chirc_message_add_parameter(struct chirc_message_t *msg, char *param, bool longlast);
+int chirc_message_add_parameter(struct chirc_message_t *msg, char *param,
+                                                                bool longlast);
 
 /* Given a message, sets all of the memory to zeros. */
 int chirc_message_clear(struct chirc_message_t *msg);

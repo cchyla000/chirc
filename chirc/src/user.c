@@ -83,7 +83,7 @@ static int set_host_name(struct chirc_user_t *user, struct worker_args *wa)
     else if (strlen(buffer) > MAX_HOST_LEN)
     {
         error = getnameinfo(wa->client_addr, sizeof(struct sockaddr_storage),
-                              user->hostname, MAX_HOST_LEN, NULL, 0, NI_NUMERICHOST);
+                        user->hostname, MAX_HOST_LEN, NULL, 0, NI_NUMERICHOST);
         if (error)
         {
             close(user->socket);
@@ -180,7 +180,8 @@ void *service_user(void *args)
             {
                 struct chirc_message_t reply_msg;
                 char prefix_buffer[MAX_MSG_LEN + 1] = {0};
-                chirc_message_construct(&reply_msg, ctx->server_name, ERR_UNKNOWNCOMMAND);
+                chirc_message_construct(&reply_msg, ctx->server_name,
+                                                            ERR_UNKNOWNCOMMAND);
                 chirc_message_add_parameter(&reply_msg, user->nickname, false);
                 sprintf(prefix_buffer, "%s :Unknown command", cmd);
                 chirc_message_add_parameter(&reply_msg, prefix_buffer, false);
@@ -244,7 +245,7 @@ void destroy_user(struct chirc_user_t *user, struct ctx_t *ctx)
     /* Remove user from all of the channels it is in */
 
     for (channel_container=user->channels; channel_container != NULL;
-                                  channel_container = channel_container->hh.next)
+                                channel_container = channel_container->hh.next)
     {
         channel = find_channel_in_user(ctx, user, channel_container->channel_name);
         remove_user_from_channel(channel, user);

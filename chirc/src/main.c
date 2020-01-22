@@ -179,13 +179,15 @@ int main(int argc, char *argv[])
 
     for(p = res;p != NULL; p = p->ai_next)
     {
-        if ((server_socket = socket(p->ai_family, p->ai_socktype, p->ai_protocol)) == -1)
+        if ((server_socket = socket(p->ai_family, p->ai_socktype,
+                                                        p->ai_protocol)) == -1)
         {
             perror("Could not open socket");
             continue;
         }
 
-        if (setsockopt(server_socket, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int)) == -1)
+        if (setsockopt(server_socket, SOL_SOCKET, SO_REUSEADDR,
+                                                      &yes, sizeof(int)) == -1)
         {
             perror("Socket setsockopt() failed");
             close(server_socket);
@@ -249,7 +251,8 @@ int main(int argc, char *argv[])
     while (1)
     {
         client_addr = calloc(1, sin_size);
-        if ((client_socket = accept(server_socket, (struct sockaddr *) client_addr, &sin_size)) == -1)
+        if ((client_socket = accept(server_socket,
+                            (struct sockaddr *) client_addr, &sin_size)) == -1)
         {
             free(client_addr);
             perror("Could not accept() connection");

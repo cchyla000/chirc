@@ -106,7 +106,8 @@ int chirc_message_construct(struct chirc_message_t *msg, char *prefix, char *cmd
     return 0;
 }
 
-int chirc_message_add_parameter(struct chirc_message_t *msg, char *param, bool longlast)
+int chirc_message_add_parameter(struct chirc_message_t *msg, char *param,
+                                                                  bool longlast)
 {
     if (msg->nparams < MAX_PARAMS)
     {

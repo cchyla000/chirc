@@ -32,11 +32,13 @@ struct chirc_channel_t *create_channel(struct ctx_t *ctx, char *channel_name);
 
 /* Adds a user to the hash of users in the channel, and adds the channel to
  * the hash of channels in the user */
-struct chirc_user_cont_t *add_user_to_channel(struct chirc_channel_t *channel, struct chirc_user_t *user);
+struct chirc_user_cont_t *add_user_to_channel(struct chirc_channel_t *channel,
+                                                    struct chirc_user_t *user);
 
 /* Removes a user from the hash of users in the channel, and removes the channel
  * from the hash of channels in the user */
-int remove_user_from_channel(struct chirc_channel_t *channel, struct chirc_user_t *user);
+int remove_user_from_channel(struct chirc_channel_t *channel,
+                                                    struct chirc_user_t *user);
 
 /* Removes a channel from the context and then frees the allocated memory */
 int destroy_channel(struct ctx_t *ctx, struct chirc_channel_t *channel);
@@ -44,10 +46,12 @@ int destroy_channel(struct ctx_t *ctx, struct chirc_channel_t *channel);
 /* Returns a pointer to a channel if the given user is a member of a channel
  * of the given name. Returns NULL if either the channel does not exist or the
  * user is not a member */
-struct chirc_channel_t *find_channel_in_user(struct ctx_t *ctx, struct chirc_user_t *user, char *channel_name);
+struct chirc_channel_t *find_channel_in_user(struct ctx_t *ctx,
+                                struct chirc_user_t *user, char *channel_name);
 
 /* Returns a pointer to a user if the given channel has a member of the given
  * nickname. Returns NULL if there is no member of that given nickname */
-struct chirc_user_t *find_user_in_channel(struct ctx_t *ctx, struct chirc_channel_t *channel, char *nickname);
+struct chirc_user_t *find_user_in_channel(struct ctx_t *ctx,
+                              struct chirc_channel_t *channel, char *nickname);
 
 #endif /* CHIRC_CHANNEL_H */
