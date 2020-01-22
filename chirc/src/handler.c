@@ -239,6 +239,51 @@ static int handle_not_enough_parameters(struct ctx_t *ctx,
     return error;
 }
 
+/* Forwards message with prefix to the given recipient user or all users on
+ * a recipient channel. Used by PRIVMSG and NOTICE. */
+static int forward_message_to_user_or_channel(struct ctx_t *ctx,
+  struct chirc_message_t *msg, struct chirc_user_t *user,
+  struct chirc_user_t *recipient, struct chirc_channel_t *recipient_channel)
+{
+    struct chirc_message_t reply_msg;
+    chirc_message_clear(&reply_msg);
+    char buffer[MAX_MSG_LEN + 1] = {0};
+
+    sprintf(buffer, "%s!%s@%s", user->nickname, user->username, user->hostname);
+    chirc_message_construct(&reply_msg, buffer, msg->cmd);
+    for (int i = 0; i < msg->nparams - 1; i++)
+    {
+        chirc_message_add_parameter(&reply_msg, msg->params[i], false);
+    }
+    chirc_message_add_parameter(&reply_msg, msg->params[msg->nparams - 1], true);
+    reply_msg.longlast = msg->longlast;
+    if (recipient)
+    {
+        /* Recipient is a user, so send to just that user */
+        send_message(&reply_msg, recipient);
+    }
+    else
+    {
+        /* Recipient is a channel, so send to all members of the channel */
+        struct chirc_user_t *user_in_channel;
+        struct chirc_user_cont_t*user_container;
+        pthread_mutex_lock(&recipient_channel->lock);
+        for (user_container=recipient_channel->users; user_container != NULL;
+                                       user_container=user_container->hh.next)
+        {
+            pthread_mutex_unlock(&recipient_channel->lock);
+            user_in_channel = find_user_in_channel(ctx, recipient_channel,
+                                                  user_container->nickname);
+            pthread_mutex_lock(&recipient_channel->lock);
+            if (user != user_in_channel)
+            {
+                send_message(&reply_msg, user_in_channel);
+            }
+        }
+        pthread_mutex_unlock(&recipient_channel->lock);
+    }
+}
+
 int handle_NICK(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_user_t *user)
 {
     char nick[MAX_NICK_LEN + 1];
@@ -445,6 +490,7 @@ int handle_PRIVMSG(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_
         return error;
     }
     struct chirc_message_t reply_msg;
+    chirc_message_clear(&reply_msg);
     if (msg->nparams == 0) // No parameters, so no recipient given
     {
         chirc_message_construct(&reply_msg, ctx->server_name,
@@ -499,40 +545,8 @@ int handle_PRIVMSG(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_
     if (recipient || recipient_channel)
     {
         /* First parameter is either a user that exists or a channel that sender
-         * is a member of, so construct the message to be sent */
-        sprintf(buffer, "%s!%s@%s", user->nickname, user->username, user->hostname);
-        chirc_message_construct(&reply_msg, buffer, msg->cmd);
-        for (int i = 0; i < msg->nparams - 1; i++)
-        {
-            chirc_message_add_parameter(&reply_msg, msg->params[i], false);
-        }
-        chirc_message_add_parameter(&reply_msg, msg->params[msg->nparams - 1], true);
-        reply_msg.longlast = msg->longlast;
-        if (recipient)
-        {
-            /* First parameter is a user, so send to just that user */
-            send_message(&reply_msg, recipient);
-        }
-        else
-        {
-            /* Recipient is a channel, so send to all members of the channel */
-            struct chirc_user_t *user_in_channel;
-            struct chirc_user_cont_t*user_container;
-            pthread_mutex_lock(&recipient_channel->lock);
-            for (user_container=recipient_channel->users; user_container != NULL;
-                                           user_container=user_container->hh.next)
-            {
-                pthread_mutex_unlock(&recipient_channel->lock);
-                user_in_channel = find_user_in_channel(ctx, recipient_channel,
-                                                      user_container->nickname);
-                pthread_mutex_lock(&recipient_channel->lock);
-                if (user != user_in_channel)
-                {
-                    send_message(&reply_msg, user_in_channel);
-                }
-            }
-            pthread_mutex_unlock(&recipient_channel->lock);
-        }
+         * is a member of */
+        forward_message_to_user_or_channel(ctx, msg, user, recipient, recipient_channel);
     }
     else if (channel_exists)
     {
@@ -579,14 +593,12 @@ int handle_NOTICE(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_u
     {
         return error;
     }
-    struct chirc_message_t reply_msg;
     if (msg->nparams == 0 || msg->nparams == 1)
     {
         return 1;
     }
     struct chirc_user_t *recipient;
     struct chirc_channel_t *recipient_channel;
-    char buffer[MAX_MSG_LEN + 1] = {0};
     char recipient_nick[MAX_NICK_LEN + 1];
     char recipient_ch_name[MAX_CHANNEL_NAME_LEN + 1];
     strcpy(recipient_nick, msg->params[0]);
@@ -597,37 +609,7 @@ int handle_NOTICE(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_u
     recipient_channel = find_channel_in_user(ctx, user, recipient_ch_name);
     if (recipient || recipient_channel)
     {
-        sprintf(buffer, "%s!%s@%s", user->nickname, user->username, user->hostname);
-        chirc_message_construct(&reply_msg, buffer, msg->cmd);
-        for (int i = 0; i < msg->nparams - 1; i++)
-        {
-            chirc_message_add_parameter(&reply_msg, msg->params[i], false);
-        }
-        chirc_message_add_parameter(&reply_msg, msg->params[msg->nparams - 1], true);
-        reply_msg.longlast = msg->longlast;
-        if (recipient)
-        {
-            send_message(&reply_msg, recipient);
-        }
-        else
-        {
-            struct chirc_user_t *user_in_channel;
-            struct chirc_user_cont_t*user_container;
-            pthread_mutex_lock(&recipient_channel->lock);
-            for (user_container=recipient_channel->users; user_container != NULL;
-                                           user_container=user_container->hh.next)
-            {
-                pthread_mutex_unlock(&recipient_channel->lock);
-                user_in_channel = find_user_in_channel(ctx, recipient_channel,
-                                                      user_container->nickname);
-                pthread_mutex_lock(&recipient_channel->lock);
-                if (user != user_in_channel)
-                {
-                    send_message(&reply_msg, user_in_channel);
-                }
-            }
-            pthread_mutex_unlock(&recipient_channel->lock);
-        }
+        forward_message_to_user_or_channel(ctx, msg, user, recipient, recipient_channel);
     }
     return 0;
 }
