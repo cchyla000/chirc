@@ -5,6 +5,8 @@
 #include "user.h"
 #include "ctx.h"
 
+/* These functions handle incoming messages of their respective commands,
+ * sending messages to other users and replying as specified */
 int handle_NICK(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_user_t *user);
 int handle_USER(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_user_t *user);
 int handle_QUIT(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_user_t *user);

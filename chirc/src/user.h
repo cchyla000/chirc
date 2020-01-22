@@ -2,6 +2,7 @@
 #define CHIRC_USER_H
 
 #include <stdbool.h>
+
 #include "../lib/uthash.h"
 #include "message.h"
 #include "channel.h"
@@ -11,6 +12,16 @@
 #define MAX_HOST_LEN 63
 #define MAX_USER_LEN 9
 
+/* Struct to accommadate uthash's inability to have the same pointer in more
+ * than one hash. This is the struct contained in the channel's hash of users.
+ * This also tells the user if they are an operator of the channel or not. */
+struct chirc_user_cont_t {
+    char nickname[MAX_NICK_LEN + 1];
+    bool is_channel_operator;
+    UT_hash_handle hh;
+};
+
+/* Struct to keep track of an individual user's informaion and its connection */
 struct chirc_user_t {
     char nickname[MAX_NICK_LEN + 1];
     char username[MAX_USER_LEN + 1];
@@ -27,6 +38,9 @@ struct chirc_user_t {
     UT_hash_handle hh;
 };
 
+/* Function that is used to run the thread when a new connection is recieved.
+ * Parses the incoming messages and sends them to the appropriate message
+ * handler using a dispath table. */
 void *service_user(void *args);
 
 /*

@@ -105,7 +105,6 @@ void *service_user(void *args)
     int client_socket, nbytes, i;
     struct ctx_t *ctx;
     struct chirc_user_t *user;
-
     char buffer[BUFFER_LEN + 1] = {0};  // + 1 for extra '\0' at end
     char tosend[MAX_MSG_LEN] = {0};
     char *tmp;
@@ -124,7 +123,6 @@ void *service_user(void *args)
     user->is_registered = false;
     user->is_unknown = true;
     user->is_irc_operator = false;
-    chilog(TRACE, "ln 120: %d", user->is_registered);
     pthread_mutex_init(&user->lock, NULL);
     set_host_name(user, wa);
     int error;
@@ -144,7 +142,6 @@ void *service_user(void *args)
 
     while(1)
     {
-        chilog(TRACE, "ln 136: %d", user->is_registered);
         nbytes = recv(client_socket, &buffer[bytes_in_buffer],
                      (BUFFER_LEN - bytes_in_buffer), 0);
         if (nbytes == 0)
@@ -154,7 +151,6 @@ void *service_user(void *args)
             free(wa);
             pthread_exit(NULL);
         }
-        chilog(TRACE, "ln 146: %d", user->is_registered);
         bytes_in_buffer += nbytes;
 
         tmp = buffer;
@@ -162,10 +158,8 @@ void *service_user(void *args)
         {
             memset(&msg, 0, sizeof(msg));
             nbytes = chirc_message_from_string(&msg, tmp);
-
             /* Point to beginning of next msg if present. */
             tmp += (nbytes + 1);
-
             /* Send msg to handler */
             cmd = msg.cmd;
             for(i=0; i<num_handlers; i++)
@@ -212,11 +206,9 @@ void *service_user(void *args)
             strcpy(buffer, tmp);
             bytes_in_buffer = bytes_in_buffer - (tmp - buffer);
             memset(&buffer[bytes_in_buffer], '\0',
-                  (BUFFER_LEN - bytes_in_buffer));
+                                                (BUFFER_LEN - bytes_in_buffer));
         }
-
     }
-
 }
 
 void destroy_user(struct chirc_user_t *user, struct ctx_t *ctx)
@@ -225,6 +217,7 @@ void destroy_user(struct chirc_user_t *user, struct ctx_t *ctx)
     struct chirc_channel_cont_t *channel_container;
 
     /* Remove user from the ctx hash of users */
+    pthread_mutex_lock(&user->lock);
     pthread_mutex_lock(&ctx->users_lock);
 
     if (user->is_unknown)
@@ -260,6 +253,7 @@ void destroy_user(struct chirc_user_t *user, struct ctx_t *ctx)
             destroy_channel(ctx, channel);
         }
     }
-
+    pthread_mutex_unlock(&user->lock);
+    pthread_mutex_destroy(&user->lock);
     free(user);
 }
