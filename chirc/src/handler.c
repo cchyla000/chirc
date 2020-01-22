@@ -896,7 +896,10 @@ int handle_JOIN(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_use
       chirc_message_clear(&reply_msg);
       chirc_message_construct(&reply_msg, ctx->server_name, RPL_ENDOFNAMES);
       chirc_message_add_parameter(&reply_msg, user->nickname, false);
-      chirc_message_add_parameter(&reply_msg, "#foobar :End of NAMES list", false);
+      pthread_mutex_lock(&channel->lock);
+      chirc_message_add_parameter(&reply_msg, channel->channel_name, false);
+      pthread_mutex_unlock(&channel->lock);
+      chirc_message_add_parameter(&reply_msg, "End of NAMES list", true);
       error = send_message(&reply_msg, user);
       if (error)
       {
@@ -1011,6 +1014,53 @@ int handle_LIST(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_use
     {
         return error;
     }
+    struct chirc_message_t reply_msg;
+    char buffer[MAX_MSG_LEN + 1] = {0};
+    char prefix_buffer[MAX_MSG_LEN + 1] = {0};
+    sprintf(prefix_buffer, "%s!%s@%s", user->nickname, user->username, user->hostname);
+    struct chirc_channel_t *channel;
+    if (msg->nparams == 1)
+    {
+        /* send info for one channel */
+        chirc_message_clear(&reply_msg);
+        char ch_name[MAX_CHANNEL_NAME_LEN + 1];
+        strcpy(ch_name, msg->params[0]);
+        pthread_mutex_lock(&ctx->channels_lock);
+        HASH_FIND_STR(ctx->channels, ch_name, channel);
+        pthread_mutex_unlock(&ctx->channels_lock);
+        if (channel)
+        {
+            chirc_message_construct(&reply_msg, prefix_buffer, RPL_LIST);
+            pthread_mutex_lock(&channel->lock);
+            sprintf(buffer, "%s %i :", ch_name, channel->nusers);
+            pthread_mutex_unlock(&channel->lock);
+            chirc_message_add_parameter(&reply_msg, buffer, false);
+            send_message(&reply_msg, user);
+        }
+    }
+    else
+    {
+        /* send all channel info */
+        pthread_mutex_lock(&ctx->channels_lock);
+        for (channel=ctx->channels; channel != NULL; channel = channel->hh.next)
+        {
+            chirc_message_clear(&reply_msg);
+            memset(buffer, 0, MAX_MSG_LEN + 1);
+            chirc_message_construct(&reply_msg, prefix_buffer, RPL_LIST);
+            chirc_message_add_parameter(&reply_msg, user->nickname, false);
+            pthread_mutex_lock(&channel->lock);
+            sprintf(buffer, "%s %i :", channel->channel_name, channel->nusers);
+            pthread_mutex_unlock(&channel->lock);
+            chirc_message_add_parameter(&reply_msg, buffer, false);
+            send_message(&reply_msg, user);
+        }
+        pthread_mutex_unlock(&ctx->channels_lock);
+    }
+    chirc_message_clear(&reply_msg);
+    chirc_message_construct(&reply_msg, prefix_buffer, RPL_LISTEND);
+    chirc_message_add_parameter(&reply_msg, user->nickname, false);
+    chirc_message_add_parameter(&reply_msg, "End of LIST", true);
+    send_message(&reply_msg, user);
     return 0;
 }
 
