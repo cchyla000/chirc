@@ -863,10 +863,13 @@ int handle_JOIN(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_use
       }
       else
       {
-          /* channel does not exist, create channel */
+          /* Channel does not exist, create channel */
           channel = create_channel(ctx, channel_name);
-          add_user_to_channel(channel, user);
-          
+          user_container = add_user_to_channel(channel, user);
+          /* First user in channel should be channel operator: */
+          pthread_mutex_lock(&channel->lock);
+          user_container->is_channel_operator = true; 
+          pthread_mutex_unlock(&channel->lock);
       }
 
       sprintf(buffer, "%s!%s@%s", user->nickname, user->username, user->hostname);
