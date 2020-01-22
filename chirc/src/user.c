@@ -123,7 +123,7 @@ void *service_user(void *args)
     user->channels = NULL;
     user->is_registered = false;
     user->is_unknown = true;
-    user->is_operator = false;
+    user->is_irc_operator = false;
     chilog(TRACE, "ln 120: %d", user->is_registered);
     pthread_mutex_init(&user->lock, NULL);
     set_host_name(user, wa);
@@ -234,6 +234,11 @@ void destroy_user(struct chirc_user_t *user, struct ctx_t *ctx)
     else
     {
         ctx->connected_clients--;
+    }
+
+    if (user->is_irc_operator)
+    {
+        ctx->num_operators--;
     }
 
     if (user->is_registered)

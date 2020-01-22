@@ -855,16 +855,22 @@ int handle_JOIN(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_use
            * and ignore if they are
            */
           user_in_channel = find_user_in_channel(ctx, channel, user->nickname);
-          if (user_in_channel) {
-            return 0;
+          if (user_in_channel) 
+          {
+              return 0;
           }
+          add_user_to_channel(channel, user);
       }
       else
       {
-          /* channel does not exist, create channel */
+          /* Channel does not exist, create channel */
           channel = create_channel(ctx, channel_name);
+          user_container = add_user_to_channel(channel, user);
+          /* First user in channel should be channel operator: */
+          pthread_mutex_lock(&channel->lock);
+          user_container->is_channel_operator = true; 
+          pthread_mutex_unlock(&channel->lock);
       }
-      add_user_to_channel(channel, user);
 
       sprintf(buffer, "%s!%s@%s", user->nickname, user->username, user->hostname);
       chirc_message_construct(&reply_msg, buffer, msg->cmd);
@@ -999,12 +1005,105 @@ int handle_PART(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_use
 
 int handle_MODE(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_user_t *user)
 {
-    int error = handle_not_registered(ctx, user);
-    if (error)
+    int error = 0;
+
+    if ((error = handle_not_registered(ctx, user)) ||
+        (error = handle_not_enough_parameters(ctx, msg, user, 3)))
     {
         return error;
     }
-    return 0;
+
+    struct chirc_channel_t *channel;
+    struct chirc_message_t reply_msg;
+    struct chirc_user_cont_t *user_container;
+    struct chirc_user_cont_t *requester_container;
+    char buffer[MAX_MSG_LEN + 1] = {0};
+    
+    pthread_mutex_lock(&ctx->channels_lock);
+    HASH_FIND_STR(ctx->channels, msg->params[0], channel);
+
+    if (channel)
+    {
+        /* Cannot result in deadlock because we will always
+           hold ctx->channels_lock before we try to acquire 
+           a particular channel lock: */
+        pthread_mutex_lock(&channel->lock);
+        pthread_mutex_unlock(&ctx->channels_lock);
+        HASH_FIND_STR(channel->users, msg->params[2], user_container);
+
+        if (user_container) 
+        {
+            /* Check if user has sufficient privileges */
+            if (!user->is_irc_operator)  // Is requester an IRC operator?
+            {
+                /* If IRC operator, requester must be a channel  
+                   operator in their specified channel */
+                HASH_FIND_STR(channel->users, user->nickname, 
+                              requester_container);
+
+                if (!requester_container || 
+                   (!requester_container->is_channel_operator))
+                {
+                    pthread_mutex_unlock(&channel->lock);
+                    chirc_message_construct(&reply_msg, ctx->server_name,
+                                            ERR_CHANOPRIVSNEEDED);
+                    chirc_message_add_parameter(&reply_msg, user->nickname, 
+                                                false);
+                    chirc_message_add_parameter(&reply_msg, msg->params[0],
+                                                false);
+                    chirc_message_add_parameter(&reply_msg, "You're not "
+                                                "channel operator", true);
+                    return (send_message(&reply_msg, user));
+                } 
+            } 
+            else if (!strcmp("+o", msg->params[1]))  // Add privileges
+            {
+                user_container->is_channel_operator = true;
+                pthread_mutex_unlock(&channel->lock);
+              
+            }
+            else if (!strcmp("-o", msg->params[1]))  // Remove privileges
+            {
+                user_container->is_channel_operator = false;
+
+                pthread_mutex_unlock(&channel->lock);
+            }
+            else  // Unknown Mode
+            {
+                pthread_mutex_unlock(&channel->lock);
+                chirc_message_construct(&reply_msg, ctx->server_name, 
+                                        ERR_UNKNOWNMODE);
+                chirc_message_add_parameter(&reply_msg, user->nickname, false);
+                chirc_message_add_parameter(&reply_msg, msg->params[1], false);
+                sprintf(buffer, "is unknown mode char to me for %s", 
+                        msg->params[0]);            
+                chirc_message_add_parameter(&reply_msg, buffer, true);
+                return (send_message(&reply_msg, user)); 
+            }
+        }
+        else  // User not in channel
+        {
+            pthread_mutex_unlock(&channel->lock);
+            chirc_message_construct(&reply_msg, ctx->server_name, 
+                                    ERR_USERNOTINCHANNEL);
+            chirc_message_add_parameter(&reply_msg, user->nickname, false);
+            chirc_message_add_parameter(&reply_msg, msg->params[2], false);
+            chirc_message_add_parameter(&reply_msg, msg->params[0], false);
+            chirc_message_add_parameter(&reply_msg, "They aren't on that channel", true);
+            return (send_message(&reply_msg, user)); 
+        }
+    }
+    else  // Channel doesn't exist
+    {
+        pthread_mutex_unlock(&ctx->channels_lock);
+        chirc_message_construct(&reply_msg, ctx->server_name, ERR_NOSUCHCHANNEL);
+        chirc_message_add_parameter(&reply_msg, user->nickname, false);
+        chirc_message_add_parameter(&reply_msg, msg->params[0], false);
+        chirc_message_add_parameter(&reply_msg, "No such channel", true);
+        return (send_message(&reply_msg, user)); 
+    }
+
+    return error;
 }
 
 int handle_LIST(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_user_t *user)
@@ -1073,7 +1172,42 @@ int handle_OPER(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_use
         return error;
     }
 
+    struct chirc_message_t reply_msg;
+    chirc_message_clear(&reply_msg);
+    
 
+    if (strcmp(ctx->password, msg->params[1]))  // Password does not match
+    {
+        chirc_message_construct(&reply_msg, ctx->server_name, ERR_PASSWDMISMATCH);
+        chirc_message_add_parameter(&reply_msg, user->nickname, false);
+        chirc_message_add_parameter(&reply_msg, "Password incorrect", true);
+        error = send_message(&reply_msg, user);
+        if (error)
+        {
+            return error;
+        }
+    }
+    else
+    {
+        pthread_mutex_lock(&ctx->users_lock);
+        pthread_mutex_lock(&user->lock);
+        ctx->num_operators++;
+        user->is_irc_operator = true; 
+        pthread_mutex_unlock(&user->lock);
+        pthread_mutex_unlock(&ctx->users_lock);
+
+        chirc_message_construct(&reply_msg, ctx->server_name, RPL_YOUREOPER);
+        chirc_message_add_parameter(&reply_msg, user->nickname, false);
+        chirc_message_add_parameter(&reply_msg, "You are now an IRC operator",
+                                    true);
+        error = send_message(&reply_msg, user);
+        if (error)
+        {
+            return error;
+        }
+    }
 
     return 0;
 }
+
+

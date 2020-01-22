@@ -21,6 +21,7 @@ struct ctx_t
     char password[MAX_MSG_LEN];
     int unknown_clients;
     int connected_clients;
+    int num_operators;
     pthread_mutex_t users_lock;
     pthread_mutex_t channels_lock;
 };

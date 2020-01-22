@@ -21,7 +21,8 @@ struct chirc_channel_t *create_channel(struct ctx_t *ctx, char *channel_name)
     return channel;
 }
 
-int add_user_to_channel(struct chirc_channel_t *channel, struct chirc_user_t *user)
+struct chirc_user_cont_t *
+add_user_to_channel(struct chirc_channel_t *channel, struct chirc_user_t *user)
 {
     // chilog(TRACE, "Adding user: %s", user->nickname);
     struct chirc_user_cont_t *user_container;
@@ -38,7 +39,7 @@ int add_user_to_channel(struct chirc_channel_t *channel, struct chirc_user_t *us
     channel->nusers++;
     pthread_mutex_unlock(&user->lock);
     pthread_mutex_unlock(&channel->lock);
-    return 0;
+    return user_container;
 }
 
 int remove_user_from_channel(struct chirc_channel_t *channel,
