@@ -221,10 +221,10 @@ void *service_user(void *args)
 
 void destroy_user(struct chirc_user_t *user, struct ctx_t *ctx)
 {
-    struct chirc_channel_t *c;
-    struct chirc_channel_t *tmp; 
+    struct chirc_channel_t *channel;
+    struct chirc_channel_cont_t *channel_container;
 
-    /* Remove user from the ctx hash of users */ 
+    /* Remove user from the ctx hash of users */
     pthread_mutex_lock(&ctx->users_lock);
 
     if (user->is_unknown)
@@ -249,15 +249,17 @@ void destroy_user(struct chirc_user_t *user, struct ctx_t *ctx)
 
 
     /* Remove user from all of the channels it is in */
-/*
-    HASH_ITER(hh, user->channels, c, tmp)
+
+    for (channel_container=user->channels; channel_container != NULL;
+                                  channel_container = channel_container->hh.next)
     {
-        pthread_mutex_lock(&c->lock);
-        pthread_mutex_lock(&user->lock);
-        HASH_DEL(c->users, user);
-        pthread_mutex_unlock(&user->lock);
-        pthread_mutex_unlock(&c->lock);
-    } 
-*/
+        channel = find_channel_in_user(ctx, user, channel_container->channel_name);
+        remove_user_from_channel(channel, user);
+        if (channel->nusers == 0)
+        {
+            destroy_channel(ctx, channel);
+        }
+    }
+
     free(user);
 }

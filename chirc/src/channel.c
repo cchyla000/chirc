@@ -70,7 +70,7 @@ int destroy_channel(struct ctx_t *ctx, struct chirc_channel_t *channel)
 
     pthread_mutex_unlock(&ctx->channels_lock);
     pthread_mutex_destroy(&channel->lock);
-    // free(channel); // got rid of free because it was causing crash, will revisit
+    free(channel);
     return 0;
 }
 
