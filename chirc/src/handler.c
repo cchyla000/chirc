@@ -1069,20 +1069,23 @@ int handle_MODE(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_use
                     return (send_message(&reply_msg, user));
                 }
             }
-
-            if (!strcmp("+o", msg->params[1]))  // Add privileges
+            else if (!strcmp("+o", msg->params[1]))  // Add privileges
             {
                 user_container->is_channel_operator = true;
                 pthread_mutex_unlock(&channel->lock);
-                chirc_message_construct(&reply_msg, user->nickname, msg->cmd);
+                chirc_message_construct(&reply_msg, ctx->server_name, msg->cmd);
                 chirc_message_add_parameter(&reply_msg, msg->params[0], false);   
                 chirc_message_add_parameter(&reply_msg, msg->params[1], false);
-                chirc_message_add_parameter(&reply_msg, msg->params[2], false);
+                sprintf(buffer, "%s%s%s", msg->params[0], msg->params[1], 
+                        msg->params[2]);
+                chirc_message_add_parameter(&reply_msg, buffer, true);
                 for (user_container=channel->users; user_container != NULL;
                                      user_container=user_container->hh.next)
                 {
+                    pthread_mutex_unlock(&channel->lock);
                     user_in_channel = find_user_in_channel(ctx, channel,
                                                          user_container->nickname);
+                    pthread_mutex_lock(&channel->lock);
                     send_message(&reply_msg, user_in_channel);
                 }
             }
@@ -1090,15 +1093,19 @@ int handle_MODE(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_use
             {
                 user_container->is_channel_operator = false;
                 pthread_mutex_unlock(&channel->lock);
-                chirc_message_construct(&reply_msg, user->nickname, msg->cmd);
+                chirc_message_construct(&reply_msg, msg->params[2], msg->cmd);
                 chirc_message_add_parameter(&reply_msg, msg->params[0], false);   
                 chirc_message_add_parameter(&reply_msg, msg->params[1], false);
-                chirc_message_add_parameter(&reply_msg, msg->params[2], false);
+                sprintf(buffer, "%s%s%s", msg->params[0], msg->params[1], 
+                        msg->params[2]);
+                chirc_message_add_parameter(&reply_msg, buffer, true);
                 for (user_container=channel->users; user_container != NULL;
                                      user_container=user_container->hh.next)
                 {
+                    pthread_mutex_unlock(&channel->lock);
                     user_in_channel = find_user_in_channel(ctx, channel,
                                                          user_container->nickname);
+                    pthread_mutex_lock(&channel->lock);
                     send_message(&reply_msg, user_in_channel);
                 }
             }
