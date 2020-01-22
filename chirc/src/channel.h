@@ -28,19 +28,15 @@ struct chirc_channel_t {
    UT_hash_handle hh;
 };
 
-struct chirc_channel_t *
-create_channel(struct ctx_t *ctx, char *channel_name);
+struct chirc_channel_t *create_channel(struct ctx_t *ctx, char *channel_name);
 
-struct chirc_user_cont_t *
-add_user_to_channel(struct chirc_channel_t *channel, struct chirc_user_t *user);
+struct chirc_user_cont_t *add_user_to_channel(struct chirc_channel_t *channel, struct chirc_user_t *user);
 
 int remove_user_from_channel(struct chirc_channel_t *channel, struct chirc_user_t *user);
 int destroy_channel(struct ctx_t *ctx, struct chirc_channel_t *channel);
 
-struct chirc_channel_t *
-find_channel_in_user(struct ctx_t *ctx, struct chirc_user_t *user, char *channel_name);
+struct chirc_channel_t *find_channel_in_user(struct ctx_t *ctx, struct chirc_user_t *user, char *channel_name);
 
-struct chirc_user_cont_t *
-find_user_in_channel(struct ctx_t *ctx, struct chirc_channel_t *channel, char *nickname);
+struct chirc_user_t *find_user_in_channel(struct ctx_t *ctx, struct chirc_channel_t *channel, char *nickname);
 
 #endif /* CHIRC_CHANNEL_H */
