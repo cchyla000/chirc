@@ -8,6 +8,7 @@
 #include "channel.h"
 #include "log.h"
 #include "reply.h"
+#include "connection.h"
 
 #define MAX_MSG_LEN 512
 #define MAX_HOST_LEN 63

@@ -13,7 +13,7 @@
 #include <errno.h>
 #include <time.h>
 
-#include "user.h"
+#include "connection.h"
 #include "handler.h"
 #include "log.h"
 #include "ctx.h"
@@ -99,7 +99,7 @@ static int set_host_name(struct chirc_user_t *user, struct worker_args *wa)
     return 0;
 }
 
-void *service_user(void *args)
+void *service_connection(void *args)
 {
     struct worker_args *wa;
     int client_socket, nbytes, i;

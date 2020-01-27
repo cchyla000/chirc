@@ -1,7 +1,7 @@
 #include <stdlib.h>
 
 #include "channel.h"
-#include "user.h"
+#include "connection.h"
 #include "ctx.h"
 #include "log.h"
 

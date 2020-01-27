@@ -4,7 +4,7 @@
 #include <pthread.h>
 
 #include "../lib/uthash.h"
-#include "user.h"
+#include "connection.h"
 #include "ctx.h"
 
 #define MAX_CHANNEL_NAME_LEN 50

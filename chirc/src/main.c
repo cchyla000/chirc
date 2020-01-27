@@ -56,7 +56,7 @@
 
 #include "log.h"
 #include "ctx.h"
-#include "user.h"
+#include "connection.h"
 
 /* A single message has max length of 512 characters */
 #define BUFFER_SIZE 512
@@ -263,7 +263,7 @@ int main(int argc, char *argv[])
         wa->socket = client_socket;
         wa->ctx = ctx;
         wa->client_addr = (struct sockaddr *) client_addr;
-        if (pthread_create(&worker_thread, NULL, service_user, wa) != 0)
+        if (pthread_create(&worker_thread, NULL, service_connection, wa) != 0)
         {
             perror("Could not create a worker thread");
             free(client_addr);
