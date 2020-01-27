@@ -7,6 +7,7 @@
 
 /* These functions handle incoming messages of their respective commands,
  * sending messages to other users and replying as specified */
+/*
 int handle_NICK_UNKNOWN(struct ctx_t *ctx, struct chirc_message_t *msg,
                                          struct chirc_connection_t *connection);
 int handle_USER_UNKNOWN(struct ctx_t *ctx, struct chirc_message_t *msg,
@@ -37,6 +38,7 @@ int handle_SERVER_UNKNOWN(struct ctx_t *ctx, struct chirc_message_t *msg,
                                          struct chirc_connection_t *connection);
 int handle_CONNECT_UNKNOWN(struct ctx_t *ctx, struct chirc_message_t *msg,
                                          struct chirc_connection_t *connection);
+*/
 int handle_NICK_USER(struct ctx_t *ctx, struct chirc_message_t *msg,
                                          struct chirc_connection_t *connection);
 int handle_USER_USER(struct ctx_t *ctx, struct chirc_message_t *msg,
@@ -67,6 +69,7 @@ int handle_SERVER_USER(struct ctx_t *ctx, struct chirc_message_t *msg,
                                          struct chirc_connection_t *connection);
 int handle_CONNECT_USER(struct ctx_t *ctx, struct chirc_message_t *msg,
                                          struct chirc_connection_t *connection);
+/*
 int handle_NICK_SERVER(struct ctx_t *ctx, struct chirc_message_t *msg,
                                          struct chirc_connection_t *connection);
 int handle_USER_SERVER(struct ctx_t *ctx, struct chirc_message_t *msg,
@@ -97,5 +100,5 @@ int handle_SERVER_SERVER(struct ctx_t *ctx, struct chirc_message_t *msg,
                                          struct chirc_connection_t *connection);
 int handle_CONNECT_SERVER(struct ctx_t *ctx, struct chirc_message_t *msg,
                                          struct chirc_connection_t *connection);
-
+*/
 #endif /* CHIRC_HANDLER_H */

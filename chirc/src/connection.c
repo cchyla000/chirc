@@ -31,7 +31,7 @@
 #define BUFFER_LEN ((2 * MAX_MSG_LEN) + 1)
 
 typedef int (*handler_function)(struct ctx_t *ctx, struct chirc_message_t *msg,
-                                struct chirc_user_t *user);
+                                struct chirc_user_t *connection);
 
 struct handler_entry
 {
@@ -66,7 +66,7 @@ int num_handlers = sizeof(handlers) / sizeof(struct handler_entry);
  * hostname can't be resolved or is greater than 63 characters
  * in length, then use the numeric form of the hostname.
 */
-static int set_host_name(struct chirc_user_t *user, struct worker_args *wa)
+static int set_host_name(char *hostname, struct worker_args *wa)
 {
     char buffer[NI_MAXHOST];
     int error;
@@ -75,70 +75,61 @@ static int set_host_name(struct chirc_user_t *user, struct worker_args *wa)
                           buffer, NI_MAXHOST, NULL, 0, 0);
     if (error)
     {
-        close(user->socket);
-        free(wa);
-        free(user);
-        pthread_exit(NULL);
+        return -1;
     }
     else if (strlen(buffer) > MAX_HOST_LEN)
     {
         error = getnameinfo(wa->client_addr, sizeof(struct sockaddr_storage),
-                        user->hostname, MAX_HOST_LEN, NULL, 0, NI_NUMERICHOST);
+                            buffer, MAX_HOST_LEN, NULL, 0, NI_NUMERICHOST);
         if (error)
         {
-            close(user->socket);
-            free(wa);
-            free(user);
-            pthread_exit(NULL);
+            return -1;
         }
     }
-    else
-    {
-        strncpy(user->hostname, buffer, MAX_HOST_LEN);
-    }
+
+    strncpy(hostname, buffer, MAX_HOST_LEN);
     return 0;
 }
 
 void *service_connection(void *args)
 {
     struct worker_args *wa;
-    int client_socket, nbytes, i;
+    struct chirc_message_t msg;
     struct ctx_t *ctx;
-    struct chirc_user_t *user;
+    struct chirc_connection_t *connection;
     char buffer[BUFFER_LEN + 1] = {0};  // + 1 for extra '\0' at end
     char tosend[MAX_MSG_LEN] = {0};
+    char hostname[MAX_HOST_LEN + 1] = {0};
+    char nickname[MAX_NICK_LEN + 1] = "*";
+    char username[MAX_USER_LEN + 1] = "*";
     char *tmp;
-    int bytes_in_buffer = 0;
+    char *cmd;
+    int client_socket, nbytes, i, error, bytes_in_buffer = 0;
+
+    struct chirc_user_t *user = NULL;
+    struct chirc_server_t *server = NULL;
 
     wa = (struct worker_args*) args;
     client_socket = wa->socket;
     ctx = wa->ctx;
 
     /* Create user struct */
-    user = calloc(1, sizeof(struct chirc_user_t));
-    memset(user->nickname, 0, MAX_NICK_LEN);
-    memset(user->username, 0, MAX_USER_LEN);
-    user->socket = client_socket;
-    user->channels = NULL;
-    user->is_registered = false;
-    user->is_unknown = true;
-    user->is_irc_operator = false;
-    pthread_mutex_init(&user->lock, NULL);
-    set_host_name(user, wa);
-    int error;
-
-    struct chirc_message_t msg;
-    char *cmd;
+    connection = calloc(1, sizeof(struct chirc_connection_t));
+    connection->type = UNKNOWN;
+    connection->socket = client_socket;
+    if (set_host_name(hostname, wa) == -1)
+    {
+        close(client_socket);
+        free(wa);
+        free(connection);
+        pthread_exit(NULL);
+    }
 
     /*
      * Tells the pthread library that no other thread is going to
      * join() this thread, so we can free its resources at termination
      */
     pthread_detach(pthread_self());
-
-    pthread_mutex_lock(&ctx->users_lock);
-    ctx->unknown_clients++;
-    pthread_mutex_unlock(&ctx->users_lock);
 
     while(1)
     {
@@ -147,7 +138,7 @@ void *service_connection(void *args)
         if (nbytes == 0)
         {
             close(client_socket);
-            destroy_user(user, ctx);
+            destroy_connection(connection, ctx);
             free(wa);
             pthread_exit(NULL);
         }
@@ -169,28 +160,27 @@ void *service_connection(void *args)
                     if (error == -1)
                     {
                         close(client_socket);
-                        destroy_user(user, ctx);
+                        destroy_connection(connection, ctx);
                         free(wa);
                         pthread_exit(NULL);
                     }
                     break;
                 }
 
-            if(i == num_handlers && user->is_registered)
+            if(i == num_handlers && connection->type != UNKNOWN)
             {
                 struct chirc_message_t reply_msg;
                 char prefix_buffer[MAX_MSG_LEN + 1] = {0};
-                chirc_message_construct(&reply_msg, ctx->server_name,
-                                                            ERR_UNKNOWNCOMMAND);
-                chirc_message_add_parameter(&reply_msg, user->nickname, false);
+                chirc_message_construct(&reply_msg, 
+                                        ctx->this_server->servername, 
+                                        ERR_UNKNOWNCOMMAND);
+                chirc_message_add_parameter(&reply_msg, nickname, false);
                 sprintf(prefix_buffer, "%s :Unknown command", cmd);
                 chirc_message_add_parameter(&reply_msg, prefix_buffer, false);
                 int nbytes;
                 char to_send[MAX_MSG_LEN + 1] = {0};
                 chirc_message_to_string(&reply_msg, to_send);
-                pthread_mutex_lock(&user->lock);
-                nbytes = send(user->socket, to_send, strlen(to_send), 0);
-                pthread_mutex_unlock(&user->lock);
+                nbytes = send(client_socket, to_send, strlen(to_send), 0);
             }
         }
 
@@ -212,49 +202,52 @@ void *service_connection(void *args)
     }
 }
 
-void destroy_user(struct chirc_user_t *user, struct ctx_t *ctx)
+void destroy_connection(struct chirc_connection_t *connection, struct ctx_t *ctx)
 {
     struct chirc_channel_t *channel;
     struct chirc_channel_cont_t *channel_container;
+    struct chirc_user_t *user;
 
     /* Remove user from the ctx hash of users */
-    pthread_mutex_lock(&user->lock);
-    pthread_mutex_lock(&ctx->users_lock);
-
-    if (user->is_unknown)
+    if (connection->type == USER)
     {
-        ctx->unknown_clients--;
-    }
-    else
-    {
-        ctx->connected_clients--;
-    }
+        user = connection->user;
+        pthread_mutex_lock(&user->lock);
+        pthread_mutex_lock(&ctx->users_lock);
 
-    if (user->is_irc_operator)
-    {
-        ctx->num_operators--;
-    }
-
-    if (user->is_registered)
-    {
-        HASH_DEL(ctx->users, user);
-    }
-    pthread_mutex_unlock(&ctx->users_lock);
-
-
-    /* Remove user from all of the channels it is in */
-
-    for (channel_container=user->channels; channel_container != NULL;
-                                channel_container = channel_container->hh.next)
-    {
-        channel = find_channel_in_user(ctx, user, channel_container->channel_name);
-        remove_user_from_channel(channel, user);
-        if (channel->nusers == 0)
+        if (user->is_irc_operator)
         {
-            destroy_channel(ctx, channel);
+            ctx->num_operators--;
         }
+
+        if (user->is_registered)
+        {
+            HASH_DEL(ctx->users, user);
+        }
+        pthread_mutex_unlock(&ctx->users_lock);
+
+        /* Remove user from all of the channels it is in */
+
+        for (channel_container=user->channels; channel_container != NULL;
+                                channel_container = channel_container->hh.next)
+        {
+            channel = find_channel_in_user(ctx, user, channel_container->channel_name);
+            remove_user_from_channel(channel, user);
+            if (channel->nusers == 0)
+            {
+                destroy_channel(ctx, channel);
+            }
+        }
+        pthread_mutex_unlock(&user->lock);
+        pthread_mutex_destroy(&user->lock);
+        free(user);
     }
-    pthread_mutex_unlock(&user->lock);
-    pthread_mutex_destroy(&user->lock);
-    free(user);
+    else if (connection->type == SERVER)
+    {
+
+    }
+
+    ctx->num_clients--;
+    free(connection);
+
 }

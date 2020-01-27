@@ -13,7 +13,7 @@ include_directories(src
 add_executable(chirc
     src/main.c
     src/log.c
-    src/user.c
+    src/connection.c
     src/channel.c
     src/handler.c
     src/message.c)

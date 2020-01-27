@@ -287,7 +287,7 @@ static int forward_message_to_user_or_channel(struct ctx_t *ctx,
     }
 }
 
-int handle_NICK(struct ctx_t *ctx, struct chirc_message_t *msg,
+int handle_NICK_USER(struct ctx_t *ctx, struct chirc_message_t *msg,
                                                       struct chirc_user_t *user)
 {
     char nick[MAX_NICK_LEN + 1];
@@ -383,7 +383,7 @@ int handle_NICK(struct ctx_t *ctx, struct chirc_message_t *msg,
     return error;
 }
 
-int handle_USER(struct ctx_t *ctx, struct chirc_message_t *msg,
+int handle_USER_USER(struct ctx_t *ctx, struct chirc_message_t *msg,
                 struct chirc_user_t *user)
 {
     char user_buffer[MAX_MSG_LEN] = {0};
@@ -431,7 +431,7 @@ int handle_USER(struct ctx_t *ctx, struct chirc_message_t *msg,
 
 }
 
-int handle_QUIT(struct ctx_t *ctx, struct chirc_message_t *msg,
+int handle_QUIT_USER(struct ctx_t *ctx, struct chirc_message_t *msg,
                                                       struct chirc_user_t *user)
 {
     int error;
@@ -490,7 +490,7 @@ int handle_QUIT(struct ctx_t *ctx, struct chirc_message_t *msg,
     return -1;  // return error code so user is destroyed and exits
 }
 
-int handle_PRIVMSG(struct ctx_t *ctx, struct chirc_message_t *msg,
+int handle_PRIVMSG_USER(struct ctx_t *ctx, struct chirc_message_t *msg,
                                                       struct chirc_user_t *user)
 {
     int error;
@@ -595,7 +595,7 @@ int handle_PRIVMSG(struct ctx_t *ctx, struct chirc_message_t *msg,
     return 0;
 }
 
-int handle_NOTICE(struct ctx_t *ctx, struct chirc_message_t *msg,
+int handle_NOTICE_USER(struct ctx_t *ctx, struct chirc_message_t *msg,
                                                       struct chirc_user_t *user)
 {
     /* The same as PRIVMSG, but with no replies sent to the sender */
@@ -626,7 +626,7 @@ int handle_NOTICE(struct ctx_t *ctx, struct chirc_message_t *msg,
     return 0;
 }
 
-int handle_PING(struct ctx_t *ctx, struct chirc_message_t *msg,
+int handle_PING_USER(struct ctx_t *ctx, struct chirc_message_t *msg,
                                                       struct chirc_user_t *user)
 {
     int error = handle_not_registered(ctx, user);
@@ -649,7 +649,7 @@ int handle_PING(struct ctx_t *ctx, struct chirc_message_t *msg,
     return 0;
 }
 
-int handle_PONG(struct ctx_t *ctx, struct chirc_message_t *msg,
+int handle_PONG_USER(struct ctx_t *ctx, struct chirc_message_t *msg,
                                                       struct chirc_user_t *user)
 {
     int error = handle_not_registered(ctx, user);
@@ -660,7 +660,7 @@ int handle_PONG(struct ctx_t *ctx, struct chirc_message_t *msg,
     return 0;
 }
 
-int handle_LUSERS(struct ctx_t *ctx, struct chirc_message_t *msg,
+int handle_LUSERS_USER(struct ctx_t *ctx, struct chirc_message_t *msg,
                                                       struct chirc_user_t *user)
 {
     int error = handle_not_registered(ctx, user);
@@ -747,7 +747,7 @@ int handle_LUSERS(struct ctx_t *ctx, struct chirc_message_t *msg,
     return 0;
 }
 
-int handle_WHOIS(struct ctx_t *ctx, struct chirc_message_t *msg,
+int handle_WHOIS_USER(struct ctx_t *ctx, struct chirc_message_t *msg,
                                                       struct chirc_user_t *user)
 {
     int error = handle_not_registered(ctx, user);
@@ -833,7 +833,7 @@ int handle_WHOIS(struct ctx_t *ctx, struct chirc_message_t *msg,
     return 0;
 }
 
-int handle_JOIN(struct ctx_t *ctx, struct chirc_message_t *msg,
+int handle_JOIN_USER(struct ctx_t *ctx, struct chirc_message_t *msg,
                                                       struct chirc_user_t *user)
 {
     int error;
@@ -931,7 +931,7 @@ int handle_JOIN(struct ctx_t *ctx, struct chirc_message_t *msg,
     return 0;
 }
 
-int handle_PART(struct ctx_t *ctx, struct chirc_message_t *msg,
+int handle_PART_USER(struct ctx_t *ctx, struct chirc_message_t *msg,
                                                       struct chirc_user_t *user)
 {
     int error;
@@ -1024,7 +1024,7 @@ int handle_PART(struct ctx_t *ctx, struct chirc_message_t *msg,
     return 0;
 }
 
-int handle_MODE(struct ctx_t *ctx, struct chirc_message_t *msg,
+int handle_MODE_USER(struct ctx_t *ctx, struct chirc_message_t *msg,
                                                       struct chirc_user_t *user)
 {
     int error = 0;
@@ -1158,7 +1158,7 @@ int handle_MODE(struct ctx_t *ctx, struct chirc_message_t *msg,
     return error;
 }
 
-int handle_LIST(struct ctx_t *ctx, struct chirc_message_t *msg,
+int handle_LIST_USER(struct ctx_t *ctx, struct chirc_message_t *msg,
                                                       struct chirc_user_t *user)
 {
     int error = handle_not_registered(ctx, user);
@@ -1217,7 +1217,7 @@ int handle_LIST(struct ctx_t *ctx, struct chirc_message_t *msg,
     return 0;
 }
 
-int handle_OPER(struct ctx_t *ctx, struct chirc_message_t *msg,
+int handle_OPER_USER(struct ctx_t *ctx, struct chirc_message_t *msg,
                                                       struct chirc_user_t *user)
 {
     int error;

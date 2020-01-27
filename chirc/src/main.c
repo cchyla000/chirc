@@ -134,18 +134,6 @@ int main(int argc, char *argv[])
         break;
     }
 
-    /* ADDED: Malloc the server context and initialize its values,
-     * which includes initializing the mutex.*/
-    struct ctx_t *ctx = calloc(1, sizeof(struct ctx_t));
-    ctx->users = NULL;
-    ctx->channels = NULL;
-    ctx->unknown_clients = 0;
-    ctx->connected_clients = 0;
-    ctx->num_operators = 0;
-    strncpy(ctx->password, passwd, MAX_MSG_LEN);
-    pthread_mutex_init(&ctx->users_lock, NULL);
-    pthread_mutex_init(&ctx->channels_lock, NULL);
-
     sigset_t new;
     sigemptyset (&new);
     sigaddset(&new, SIGPIPE);
@@ -153,6 +141,86 @@ int main(int argc, char *argv[])
     {
         perror("Unable to mask SIGPIPE");
         exit(-1);
+    }
+
+    /* Malloc the global context and initialize its values */
+    struct ctx_t *ctx = calloc(1, sizeof(struct ctx_t));
+    pthread_mutex_init(&ctx->users_lock, NULL);
+    pthread_mutex_init(&ctx->channels_lock, NULL);
+    pthread_mutex_init(&ctx->servers_lock, NULL);
+
+    /* Store the network specification file in data structure: */
+    char *token;
+    char *token2;
+    char *rest;
+    int i;
+    struct chirc_server_t *server;
+    struct chirc_server_t *tmp;
+    while ((token = strtok_r(rest, "\n", &rest)))
+    {
+        for (i = 0; token2 = strtok_r(token, ",", &token); i++)
+        {
+            switch (i)
+            {
+                case 0:  // Server name
+                    server = calloc(1, sizeof (struct chirc_server_t));
+                    pthread_mutex_init(&server->lock, NULL);
+                    strncpy(server->servername, token2, MAX_SERVER_LEN);
+                    break;
+                case 1:
+                    strncpy(server->hostname, token2, MAX_HOST_LEN);
+                    break;
+                case 2:
+                    strncpy(server->port, token2, MAX_PORT_LEN);
+                    break;
+                case 3:
+                    strncpy(server->password, token2, MAX_PASSWORD_LEN);   
+                    HASH_ADD_STR(ctx->network_servers, servername, server);
+                    break;
+                default:
+                    free(server);
+                    HASH_ITER(hh, ctx->network_servers, server, tmp)
+                    {
+                        HASH_DEL(ctx->network_servers, server);
+                        free(server);
+                    }
+                    perror("Too many commas per line in "
+                           "network specification file");
+                    exit(-1);
+            } 
+        }
+    } 
+
+    if (network_file)
+    {
+        /* Find the server corresponding to this program 
+           in network specification file */
+        HASH_FIND_STR(ctx->network_servers, server_name, server);
+        if (server)
+        {
+            server->is_registered = true;
+            ctx->this_server = server;
+        }
+        else  // Server not specified. Exit with error. 
+        {
+            HASH_ITER(hh, ctx->network_servers, server, tmp)
+            {
+                HASH_DEL(ctx->network_servers, server);
+                free(server);
+            }
+            perror("Servername not specified in network file");
+            exit(-1);
+        }
+    }
+    else
+    {
+        server = calloc(1, sizeof (struct chirc_server_t));
+        pthread_mutex_init(&server->lock, NULL);
+        strncpy(server->password, passwd, MAX_PASSWORD_LEN);
+        strncpy(server->servername, server_name, MAX_SERVER_LEN);
+        strncpy(server->port, port, MAX_PORT_LEN);
+        server->is_registered = true;
+        ctx->this_server = server;
     }
 
     int server_socket;
@@ -171,7 +239,7 @@ int main(int argc, char *argv[])
     hints.ai_socktype = SOCK_STREAM;
     hints.ai_flags = AI_PASSIVE;
 
-    if (getaddrinfo(NULL, port, &hints, &res) != 0)
+    if (getaddrinfo(NULL, server->port, &hints, &res) != 0)
     {
         perror("getaddrinfo() failed");
         pthread_exit(NULL);
@@ -208,32 +276,42 @@ int main(int argc, char *argv[])
             continue;
         }
 
-        /* Get server hostname */
-        error = getnameinfo(p, sizeof(struct sockaddr_storage),
-                            server_name_buffer, NI_MAXHOST, NULL, 0, 0);
-        if (error)
+        /* Without network file, we must get hostname using getnameinfo() */
+        if (!network_file)
         {
-            perror("Failed to resolve server hostname");
-            close(server_socket);
-            continue;
-        }
-        else if (strlen(server_name_buffer) > MAX_HOST_LEN)
-        {
+            /* Get server hostname */
             error = getnameinfo(p, sizeof(struct sockaddr_storage),
-                                ctx->server_name, MAX_HOST_LEN, NULL,
-                                0, NI_NUMERICHOST);
+                                server_name_buffer, NI_MAXHOST, NULL, 0, 0);
             if (error)
             {
                 perror("Failed to resolve server hostname");
                 close(server_socket);
                 continue;
             }
+            else if (strlen(server_name_buffer) > MAX_HOST_LEN)
+            {
+                /* Full hostname is too long. Get numeric hostname instead */
+                error = getnameinfo(p, sizeof(struct sockaddr_storage),
+                                    server_name_buffer, MAX_HOST_LEN, NULL,
+                                    0, NI_NUMERICHOST);
+                if (error)
+                {
+                    perror("Failed to resolve server hostname");
+                    close(server_socket);
+                    continue;
+                }
+            }
+
+            strncpy(server->hostname, server_name_buffer, MAX_HOST_LEN);
+           
+            /* If no different server_name is specified in arguments,
+               set the server_name to be the hostname as well. */ 
+            if (!server_name)
+            {
+                strncpy(server->servername, server_name_buffer, MAX_HOST_LEN);
+            }
+            break;
         }
-        else
-        {
-            strncpy(ctx->server_name, server_name_buffer, MAX_HOST_LEN);
-        }
-        break;
     }
 
     freeaddrinfo(res);
@@ -248,6 +326,7 @@ int main(int argc, char *argv[])
     struct tm tm = *localtime(&t);
     sprintf(ctx->date_created, "%d-%02d-%02d %02d:%02d:%02d", tm.tm_year + 1900,
             tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
+
     while (1)
     {
         client_addr = calloc(1, sin_size);
@@ -258,7 +337,8 @@ int main(int argc, char *argv[])
             perror("Could not accept() connection");
             continue;
         }
-
+        
+        ctx->num_clients += 1;
         wa = calloc(1, sizeof(struct worker_args));
         wa->socket = client_socket;
         wa->ctx = ctx;
@@ -273,10 +353,6 @@ int main(int argc, char *argv[])
             return 1;
         }
     }
-
-    pthread_mutex_destroy(&ctx->users_lock);
-    pthread_mutex_destroy(&ctx->channels_lock);
-    free(ctx);
 
     return 0;
 }
