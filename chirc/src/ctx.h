@@ -35,6 +35,7 @@ struct ctx_t
     int num_operators;
     pthread_mutex_t users_lock;
     pthread_mutex_t channels_lock;
+    pthread_mutex_t servers_lock;
 };
 
 /* The set of variables that each thread will receive */
