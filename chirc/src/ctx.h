@@ -19,14 +19,10 @@ struct ctx_t
      *  either points to a user or the server they are on
      */
     struct chirc_user_t *users;
-<<<<<<< HEAD
-    struct chirc_channel_t *channels;
-=======
     struct chirc_user_cont_t *network_users;
     struct chirc_channel_t *channels;
     /* All servers in network specification file: */
     // struct chirc_server_t *network_servers;
->>>>>>> master
     struct chirc_server_t *servers;  // Servers connected to this server
     struct chirc_server_t *this_server;
     char date_created[DATE_LEN];
