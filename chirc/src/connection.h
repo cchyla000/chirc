@@ -22,6 +22,7 @@ struct chirc_server_t {
     char password[MAX_PASSWORD_LEN + 1];
     char hostname[MAX_HOST_LEN + 1]; 
     char port[MAX_PORT_LEN + 1];
+    int socket;
     bool is_registered;
     pthread_mutex_t lock;
     UT_hash_handle hh;
@@ -36,6 +37,7 @@ struct chirc_user_t {
        real user name can realistically be similarly truncated: */
     char realusername[MAX_HOST_LEN + 1];
     struct chirc_channel_cont_t *channels; // Hash of channels user is a part of
+    int socket;
     bool is_irc_operator;
     bool is_registered;
     pthread_mutex_t lock;
@@ -56,7 +58,6 @@ struct chirc_user_cont_t {
 
 struct chirc_connection_t {
     enum connection_type type; 
-    int socket;
     struct chirc_user_t *user; // is NULL if not user
     struct chirc_server_t *server; // is NULL if not server
 };

@@ -14,7 +14,8 @@
 #include <time.h>
 
 #include "connection.h"
-#include "handler.h"
+#include "user_handler.h"
+#include "server_handler.h"
 #include "log.h"
 #include "ctx.h"
 #include "reply.h"
@@ -30,36 +31,64 @@
 #define MAX_MSG_LEN 512
 #define BUFFER_LEN ((2 * MAX_MSG_LEN) + 1)
 
-typedef int (*handler_function)(struct ctx_t *ctx, struct chirc_message_t *msg,
-                                struct chirc_user_t *connection);
+typedef int (*user_handler_function)(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_user_t *user);
 
-struct handler_entry
+typedef int (*server_handler_function)(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_server_t *server);
+
+struct user_handler_entry
 {
     char *name;
-    handler_function func;
+    user_handler_function func;
 };
 
-#define HANDLER_ENTRY(NAME) { #NAME, handle_ ## NAME}
+struct server_handler_entry
+{
+    char *name;
+    server_handler_function func;
+};
 
-struct handler_entry handlers[] = {
-                                     HANDLER_ENTRY(NICK),
-                                     HANDLER_ENTRY(USER),
-                                     HANDLER_ENTRY(QUIT),
-                                     HANDLER_ENTRY(PRIVMSG),
-                                     HANDLER_ENTRY(NOTICE),
-                                     HANDLER_ENTRY(PING),
-                                     HANDLER_ENTRY(PONG),
-                                     HANDLER_ENTRY(LUSERS),
-                                     HANDLER_ENTRY(WHOIS),
-                                     HANDLER_ENTRY(JOIN),
-                                     HANDLER_ENTRY(PART),
-                                     HANDLER_ENTRY(PART),
-                                     HANDLER_ENTRY(MODE),
-                                     HANDLER_ENTRY(LIST),
-                                     HANDLER_ENTRY(OPER)
+#define USER_HANDLER_ENTRY(NAME) { #NAME, handle_ ## NAME ## _USER }
+#define SERVER_HANDLER_ENTRY(NAME) { #NAME, handle_ ## NAME ## _SERVER }
+
+struct user_handler_entry user_handlers[] = {
+                                     USER_HANDLER_ENTRY(NICK),
+                                     USER_HANDLER_ENTRY(USER),
+                                     USER_HANDLER_ENTRY(QUIT),
+                                     USER_HANDLER_ENTRY(PRIVMSG),
+                                     USER_HANDLER_ENTRY(NOTICE),
+                                     USER_HANDLER_ENTRY(PING),
+                                     USER_HANDLER_ENTRY(PONG),
+                                     USER_HANDLER_ENTRY(LUSERS),
+                                     USER_HANDLER_ENTRY(WHOIS),
+                                     USER_HANDLER_ENTRY(JOIN),
+                                     USER_HANDLER_ENTRY(MODE),
+                                     USER_HANDLER_ENTRY(LIST),
+                                     USER_HANDLER_ENTRY(OPER),
+                                     USER_HANDLER_ENTRY(PART),
                                   };
 
-int num_handlers = sizeof(handlers) / sizeof(struct handler_entry);
+struct server_handler_entry server_handlers[] = {
+                                     SERVER_HANDLER_ENTRY(NICK),
+                                     SERVER_HANDLER_ENTRY(USER),
+                                     SERVER_HANDLER_ENTRY(QUIT),
+                                     SERVER_HANDLER_ENTRY(PRIVMSG),
+                                     SERVER_HANDLER_ENTRY(NOTICE),
+                                     SERVER_HANDLER_ENTRY(PING),
+                                     SERVER_HANDLER_ENTRY(PONG),
+                                     SERVER_HANDLER_ENTRY(LUSERS),
+                                     SERVER_HANDLER_ENTRY(WHOIS),
+                                     SERVER_HANDLER_ENTRY(JOIN),
+                                     SERVER_HANDLER_ENTRY(MODE),
+                                     SERVER_HANDLER_ENTRY(LIST),
+                                     SERVER_HANDLER_ENTRY(OPER),
+                                     SERVER_HANDLER_ENTRY(PART),
+                                     SERVER_HANDLER_ENTRY(PASS),
+                                     SERVER_HANDLER_ENTRY(SERVER),
+                                     SERVER_HANDLER_ENTRY(CONNECT),
+                                  };
+
+int num_user_handlers = sizeof(user_handlers) / sizeof(struct user_handler_entry);
+int num_server_handlers = sizeof(server_handlers) / sizeof(struct server_handler_entry);
 
 /*
  * Set struct user hostname field using getnameinfo(); if
@@ -116,7 +145,6 @@ void *service_connection(void *args)
     /* Create user struct */
     connection = calloc(1, sizeof(struct chirc_connection_t));
     connection->type = UNKNOWN;
-    connection->socket = client_socket;
     if (set_host_name(hostname, wa) == -1)
     {
         close(client_socket);
@@ -153,10 +181,10 @@ void *service_connection(void *args)
             tmp += (nbytes + 1);
             /* Send msg to handler */
             cmd = msg.cmd;
-            for(i=0; i<num_handlers; i++)
-                if (!strcmp(handlers[i].name, cmd))
+            for(i=0; i<num_user_handlers; i++)
+                if (!strcmp(user_handlers[i].name, cmd))
                 {
-                    error = handlers[i].func(ctx, &msg, user);
+                    error = user_handlers[i].func(ctx, &msg, user);
                     if (error == -1)
                     {
                         close(client_socket);
@@ -167,7 +195,7 @@ void *service_connection(void *args)
                     break;
                 }
 
-            if(i == num_handlers && connection->type != UNKNOWN)
+            if(i == num_user_handlers && connection->type != UNKNOWN)
             {
                 struct chirc_message_t reply_msg;
                 char prefix_buffer[MAX_MSG_LEN + 1] = {0};

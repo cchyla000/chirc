@@ -15,7 +15,8 @@ add_executable(chirc
     src/log.c
     src/connection.c
     src/channel.c
-    src/handler.c
+    src/user_handler.c
+    src/server_handler.c
     src/message.c)
 
 target_link_libraries(chirc pthread)
