@@ -126,11 +126,11 @@ void *service_connection(void *args)
     struct chirc_message_t msg;
     struct ctx_t *ctx;
     struct chirc_connection_t *connection;
+    struct chirc_message_t reply_msg;
     char buffer[BUFFER_LEN + 1] = {0};  // + 1 for extra '\0' at end
-    char tosend[MAX_MSG_LEN] = {0};
+    char tosend[MAX_MSG_LEN + 1] = {0};
+    char prefix_buffer[MAX_MSG_LEN + 1] = {0};
     char hostname[MAX_HOST_LEN + 1] = {0};
-    char nickname[MAX_NICK_LEN + 1] = "*";
-    char username[MAX_USER_LEN + 1] = "*";
     char *tmp;
     char *cmd;
     int client_socket, nbytes, i, error, bytes_in_buffer = 0;
@@ -181,37 +181,87 @@ void *service_connection(void *args)
             tmp += (nbytes + 1);
             /* Send msg to handler */
             cmd = msg.cmd;
-            for(i=0; i<num_user_handlers; i++)
-                if (!strcmp(user_handlers[i].name, cmd))
-                {
-                    error = user_handlers[i].func(ctx, &msg, user);
-                    if (error == -1)
-                    {
-                        close(client_socket);
-                        destroy_connection(connection, ctx);
-                        free(wa);
-                        pthread_exit(NULL);
-                    }
-                    break;
-                }
 
-            if(i == num_user_handlers && connection->type != UNKNOWN)
+            if (connection->type == UNKNOWN)
             {
-                struct chirc_message_t reply_msg;
-                char prefix_buffer[MAX_MSG_LEN + 1] = {0};
-                chirc_message_construct(&reply_msg, 
-                                        ctx->this_server->servername, 
-                                        ERR_UNKNOWNCOMMAND);
-                chirc_message_add_parameter(&reply_msg, nickname, false);
-                sprintf(prefix_buffer, "%s :Unknown command", cmd);
-                chirc_message_add_parameter(&reply_msg, prefix_buffer, false);
-                int nbytes;
-                char to_send[MAX_MSG_LEN + 1] = {0};
-                chirc_message_to_string(&reply_msg, to_send);
-                nbytes = send(client_socket, to_send, strlen(to_send), 0);
+                if (!strcmp("NICK", cmd) || (!strcmp("USER", cmd)))
+                {
+                    connection->type = USER;
+                    user = calloc(1, sizeof(struct chirc_user_t));
+                    strncpy(user->hostname, hostname, MAX_HOST_LEN);
+                    user->socket = client_socket;
+                    pthread_mutex_init(&user->lock, NULL);
+                }
+                else if (!strcmp("PASS", cmd) || (!strcmp("SERVER", cmd)))
+                {
+                    connection->type = SERVER;
+                    server = calloc(1, sizeof(struct chirc_server_t));
+                    strncpy(server->hostname, hostname, MAX_HOST_LEN);
+                    server->socket = client_socket;
+                    pthread_mutex_init(&server->lock, NULL);
+                }
+                else
+                {
+                    chirc_message_construct(&reply_msg, server->servername,
+                                            ERR_NOTREGISTERED);
+                    chirc_message_add_parameter(&reply_msg, NULL, false);
+                    chirc_message_add_parameter(&reply_msg, 
+                                        "You have not registered", true);
+                    chirc_message_to_string(&reply_msg, tosend);
+                    send(client_socket, tosend, strlen(tosend), 0);
+                }
+            }
+            
+            if (connection->type == USER)
+            {
+                for(i=0; i<num_user_handlers; i++)
+                {
+                    if (!strcmp(user_handlers[i].name, cmd))
+                    {
+                        error = user_handlers[i].func(ctx, &msg, user);
+                        if (error == -1)
+                        {
+                            close(client_socket);
+                            destroy_connection(connection, ctx);
+                            free(wa);
+                            pthread_exit(NULL);
+                        }
+                        break;
+                    }
+                }
+                if (i == num_user_handlers)
+                {
+                    chirc_message_construct(&reply_msg, 
+                                            ctx->this_server->servername, 
+                                            ERR_UNKNOWNCOMMAND);
+                    chirc_message_add_parameter(&reply_msg, 
+                                                user->nickname, false);
+                    sprintf(prefix_buffer, "%s :Unknown command", cmd);
+                    chirc_message_add_parameter(&reply_msg, 
+                                                prefix_buffer, false);
+                    chirc_message_to_string(&reply_msg, tosend);
+                    send(client_socket, tosend, strlen(tosend), 0);
+                } 
+            }
+            else if (connection->type == SERVER)
+            {
+                for(i=0; i<num_server_handlers; i++)
+                {
+                    if (!strcmp(server_handlers[i].name, cmd))
+                    {
+                        error = server_handlers[i].func(ctx, &msg, user);
+                        if (error == -1)
+                        {
+                            close(client_socket);
+                            destroy_connection(connection, ctx);
+                            free(wa);
+                            pthread_exit(NULL);
+                        }
+                        break;
+                    }
+                }
             }
         }
-
         /* Clear Buffer */
         if (*tmp == '\0')  // No next message, so reset buffer
         {
@@ -225,7 +275,7 @@ void *service_connection(void *args)
             strcpy(buffer, tmp);
             bytes_in_buffer = bytes_in_buffer - (tmp - buffer);
             memset(&buffer[bytes_in_buffer], '\0',
-                                                (BUFFER_LEN - bytes_in_buffer));
+                                (BUFFER_LEN - bytes_in_buffer));
         }
     }
 }
@@ -235,6 +285,7 @@ void destroy_connection(struct chirc_connection_t *connection, struct ctx_t *ctx
     struct chirc_channel_t *channel;
     struct chirc_channel_cont_t *channel_container;
     struct chirc_user_t *user;
+    struct chirc_server_t *server;
 
     /* Remove user from the ctx hash of users */
     if (connection->type == USER)
@@ -272,7 +323,8 @@ void destroy_connection(struct chirc_connection_t *connection, struct ctx_t *ctx
     }
     else if (connection->type == SERVER)
     {
-
+        server = connection->server;
+        free(server);
     }
 
     ctx->num_clients--;
