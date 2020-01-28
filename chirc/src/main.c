@@ -66,6 +66,7 @@ int main(int argc, char *argv[])
     int opt;
     char *port = NULL, *passwd = NULL, *server_name = NULL, *network_file = NULL;
     int verbosity = 0;
+    FILE *fp;
 
     while ((opt = getopt(argc, argv, "p:o:s:n:vqh")) != -1)
         switch (opt)
@@ -150,62 +151,72 @@ int main(int argc, char *argv[])
     pthread_mutex_init(&ctx->servers_lock, NULL);
 
     /* Store the network specification file in data structure: */
-    char *token;
-    char *token2;
-    char *rest;
+    char *token = NULL;
+    char *rest = NULL;
     int i;
     struct chirc_server_t *server;
     struct chirc_server_t *tmp;
-    while ((token = strtok_r(rest, "\n", &rest)))
-    {
-        for (i = 0; token2 = strtok_r(token, ",", &token); i++)
-        {
-            switch (i)
-            {
-                case 0:  // Server name
-                    server = calloc(1, sizeof (struct chirc_server_t));
-                    pthread_mutex_init(&server->lock, NULL);
-                    strncpy(server->servername, token2, MAX_SERVER_LEN);
-                    break;
-                case 1:
-                    strncpy(server->hostname, token2, MAX_HOST_LEN);
-                    break;
-                case 2:
-                    strncpy(server->port, token2, MAX_PORT_LEN);
-                    break;
-                case 3:
-                    strncpy(server->password, token2, MAX_PASSWORD_LEN);   
-                    HASH_ADD_STR(ctx->network_servers, servername, server);
-                    break;
-                default:
-                    free(server);
-                    HASH_ITER(hh, ctx->network_servers, server, tmp)
-                    {
-                        HASH_DEL(ctx->network_servers, server);
-                        free(server);
-                    }
-                    perror("Too many commas per line in "
-                           "network specification file");
-                    exit(-1);
-            } 
-        }
-    } 
+    char buffer[NI_MAXHOST];
 
     if (network_file)
     {
-        /* Find the server corresponding to this program 
+        fp = fopen(network_file, "r");
+        if (fp == NULL)
+        {
+            perror("Could not open network file");
+            exit(-1);
+        }
+
+        while (fgets(buffer, NI_MAXHOST, fp) != NULL)
+        {
+            rest = buffer;
+            for (i = 0; token = strtok_r(rest, ",", &rest); i++)
+            {
+                switch (i)
+                {
+                    case 0:  // Server name
+                        server = calloc(1, sizeof (struct chirc_server_t));
+                        pthread_mutex_init(&server->lock, NULL);
+                        strncpy(server->servername, token, MAX_SERVER_LEN);
+                        break;
+                    case 1:
+                        strncpy(server->hostname, token, MAX_HOST_LEN);
+                        break;
+                    case 2:
+                        strncpy(server->port, token, MAX_PORT_LEN);
+                        break;
+                    case 3:
+                        strncpy(server->password, token, MAX_PASSWORD_LEN);
+                        HASH_ADD_STR(ctx->servers, servername, server);
+                        break;
+                    default:
+                        free(server);
+                        HASH_ITER(hh, ctx->servers, server, tmp)
+                        {
+                            HASH_DEL(ctx->servers, server);
+                            free(server);
+                        }
+                        perror("Too many commas per line in "
+                               "network specification file");
+                        exit(-1);
+                }
+            }
+        }
+
+        /* Find the server corresponding to this program
            in network specification file */
-        HASH_FIND_STR(ctx->network_servers, server_name, server);
+        HASH_FIND_STR(ctx->servers, server_name, server);
         if (server)
         {
             server->is_registered = true;
             ctx->this_server = server;
+            HASH_DEL(ctx->servers, server);
         }
-        else  // Server not specified. Exit with error. 
+        else  // Server not specified. Exit with error.
         {
-            HASH_ITER(hh, ctx->network_servers, server, tmp)
+            HASH_ITER(hh, ctx->servers, server, tmp)
             {
-                HASH_DEL(ctx->network_servers, server);
+                HASH_DEL(ctx->servers, server);
                 free(server);
             }
             perror("Servername not specified in network file");
@@ -214,13 +225,15 @@ int main(int argc, char *argv[])
     }
     else
     {
+        chilog(DEBUG, "No network file, init this server");
         server = calloc(1, sizeof (struct chirc_server_t));
         pthread_mutex_init(&server->lock, NULL);
         strncpy(server->password, passwd, MAX_PASSWORD_LEN);
-        strncpy(server->servername, server_name, MAX_SERVER_LEN);
+//        strncpy(server->servername, server_name, MAX_SERVER_LEN);
         strncpy(server->port, port, MAX_PORT_LEN);
         server->is_registered = true;
         ctx->this_server = server;
+        chilog(DEBUG, "Done init this server");
     }
 
     int server_socket;
@@ -232,7 +245,6 @@ int main(int argc, char *argv[])
     socklen_t sin_size = sizeof(struct sockaddr_storage);
     struct worker_args *wa;
     int yes = 1;
-    char server_name_buffer[NI_MAXHOST];
 
     memset(&hints, 0, sizeof hints);
     hints.ai_family = AF_UNSPEC;
@@ -281,18 +293,18 @@ int main(int argc, char *argv[])
         {
             /* Get server hostname */
             error = getnameinfo(p, sizeof(struct sockaddr_storage),
-                                server_name_buffer, NI_MAXHOST, NULL, 0, 0);
+                                buffer, NI_MAXHOST, NULL, 0, 0);
             if (error)
             {
                 perror("Failed to resolve server hostname");
                 close(server_socket);
                 continue;
             }
-            else if (strlen(server_name_buffer) > MAX_HOST_LEN)
+            else if (strlen(buffer) > MAX_HOST_LEN)
             {
                 /* Full hostname is too long. Get numeric hostname instead */
                 error = getnameinfo(p, sizeof(struct sockaddr_storage),
-                                    server_name_buffer, MAX_HOST_LEN, NULL,
+                                    buffer, MAX_HOST_LEN, NULL,
                                     0, NI_NUMERICHOST);
                 if (error)
                 {
@@ -302,13 +314,13 @@ int main(int argc, char *argv[])
                 }
             }
 
-            strncpy(server->hostname, server_name_buffer, MAX_HOST_LEN);
-           
+            strncpy(server->hostname, buffer, MAX_HOST_LEN);
+
             /* If no different server_name is specified in arguments,
-               set the server_name to be the hostname as well. */ 
+               set the server_name to be the hostname as well. */
             if (!server_name)
             {
-                strncpy(server->servername, server_name_buffer, MAX_HOST_LEN);
+                strncpy(server->servername, buffer, MAX_HOST_LEN);
             }
             break;
         }
@@ -337,12 +349,13 @@ int main(int argc, char *argv[])
             perror("Could not accept() connection");
             continue;
         }
-        
+
         ctx->num_clients += 1;
         wa = calloc(1, sizeof(struct worker_args));
         wa->socket = client_socket;
         wa->ctx = ctx;
         wa->client_addr = (struct sockaddr *) client_addr;
+        chilog(DEBUG, "About to create worker thread");
         if (pthread_create(&worker_thread, NULL, service_connection, wa) != 0)
         {
             perror("Could not create a worker thread");

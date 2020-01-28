@@ -368,6 +368,7 @@ int handle_NICK_USER(struct ctx_t *ctx, struct chirc_message_t *msg,
 
         if (*user->username)  // Registration complete
         {
+            chilog(DEBUG, "About to add user to hash");
             user->is_registered = true;
             pthread_mutex_lock(&ctx->users_lock);
             HASH_ADD_STR(ctx->users, nickname, user);

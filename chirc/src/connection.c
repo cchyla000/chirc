@@ -152,7 +152,7 @@ void *service_connection(void *args)
         free(connection);
         pthread_exit(NULL);
     }
-
+    chilog(DEBUG, "Finished setting hostname");
     /*
      * Tells the pthread library that no other thread is going to
      * join() this thread, so we can free its resources at termination
@@ -175,6 +175,7 @@ void *service_connection(void *args)
         tmp = buffer;
         while (strstr(tmp, "\r\n") != NULL)
         {
+            chilog(DEBUG, "Command iteration");
             memset(&msg, 0, sizeof(msg));
             nbytes = chirc_message_from_string(&msg, tmp);
             /* Point to beginning of next msg if present. */
@@ -184,8 +185,10 @@ void *service_connection(void *args)
 
             if (connection->type == UNKNOWN)
             {
+                chilog(DEBUG, "Connection type unknown");
                 if (!strcmp("NICK", cmd) || (!strcmp("USER", cmd)))
                 {
+                    chilog(DEBUG, "Setting connection type to user");
                     connection->type = USER;
                     user = calloc(1, sizeof(struct chirc_user_t));
                     strncpy(user->hostname, hostname, MAX_HOST_LEN);
@@ -249,7 +252,7 @@ void *service_connection(void *args)
                 {
                     if (!strcmp(server_handlers[i].name, cmd))
                     {
-                        error = server_handlers[i].func(ctx, &msg, user);
+                        error = server_handlers[i].func(ctx, &msg, server);
                         if (error == -1)
                         {
                             close(client_socket);
