@@ -15,12 +15,12 @@
 #define MAX_PASSWORD_LEN 63
 #define MAX_PORT_LEN 5
 
-enum connection_type { UNKNOWN, USER, SERVER }; 
+enum connection_type { UNKNOWN, USER, SERVER };
 
 struct chirc_server_t {
     char servername[MAX_SERVER_LEN + 1];
     char password[MAX_PASSWORD_LEN + 1];
-    char hostname[MAX_HOST_LEN + 1]; 
+    char hostname[MAX_HOST_LEN + 1];
     char port[MAX_PORT_LEN + 1];
     int socket;
     bool is_registered;
@@ -32,7 +32,7 @@ struct chirc_server_t {
 struct chirc_user_t {
     char nickname[MAX_NICK_LEN + 1];
     char username[MAX_USER_LEN + 1];
-    char hostname[MAX_HOST_LEN + 1]; 
+    char hostname[MAX_HOST_LEN + 1];
     /* Host name limited to 63 chars in specifications, so
        real user name can realistically be similarly truncated: */
     char realusername[MAX_HOST_LEN + 1];
@@ -51,13 +51,12 @@ struct chirc_user_cont_t {
     char nickname[MAX_NICK_LEN + 1];
     bool on_this_server;
     struct chirc_user_t *user; // is NULL if user not on this server
-    struct chirc_server_t *server; // is NULL if user on this server
     bool is_channel_operator;
     UT_hash_handle hh;
 };
 
 struct chirc_connection_t {
-    enum connection_type type; 
+    enum connection_type type;
     struct chirc_user_t *user; // is NULL if not user
     struct chirc_server_t *server; // is NULL if not server
 };
