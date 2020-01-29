@@ -556,7 +556,7 @@ int handle_QUIT_USER(struct ctx_t *ctx, struct chirc_message_t *msg,
         pthread_mutex_unlock(&channel->lock);
     }
     send_message(&reply_msg_to_user, user);
-    return -1;  // return error code so user is destroyed and exits
+    return 0;  // return error code so user is destroyed and exits
 }
 
 int handle_PRIVMSG_USER(struct ctx_t *ctx, struct chirc_message_t *msg,
