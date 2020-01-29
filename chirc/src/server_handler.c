@@ -356,12 +356,17 @@ int handle_PASS_SERVER(struct ctx_t *ctx, struct chirc_message_t *msg,
     chirc_message_clear(&reply_msg);
     struct chirc_server_t *this_server = ctx->this_server;
 
+//    chilog(DEBUG, "In handle_PASS in server %s for server %s", this_server->servername, server->servername);
+
+    chilog(DEBUG, "received server is_registered = %d", server->is_registered);
+
     if ((error = handle_not_enough_parameters(ctx, msg, server, 3)))
     {
         return error;
     }
     else if (server->is_registered)
     {
+        chilog(DEBUG, "server already registered");
         chirc_message_construct(&reply_msg, this_server->servername,
                                 ERR_ALREADYREGISTERED);
         chirc_message_add_parameter(&reply_msg, server->servername, false);
@@ -388,9 +393,11 @@ int handle_SERVER_SERVER(struct ctx_t *ctx, struct chirc_message_t *msg,
     struct chirc_message_t reply_msg;
     chirc_message_clear(&reply_msg);
     struct chirc_server_t *this_server = ctx->this_server;
+    chilog(DEBUG, "In handle_SERVER in server %s for server %s", this_server->servername, server->servername);
 
     if (server->is_registered)
     {
+        chilog(DEBUG, "server already registered");
         chirc_message_construct(&reply_msg, this_server->servername,
                                 ERR_ALREADYREGISTERED);
         chirc_message_add_parameter(&reply_msg, server->servername, false);

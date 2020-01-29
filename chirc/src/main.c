@@ -315,7 +315,7 @@ int main(int argc, char *argv[])
             perror("Could not accept() connection");
             continue;
         }
-
+        chilog(DEBUG, "Spawning new connection thread for server %s", ctx->this_server->servername);
         ctx->num_clients += 1;
         wa = calloc(1, sizeof(struct worker_args));
         wa->socket = client_socket;

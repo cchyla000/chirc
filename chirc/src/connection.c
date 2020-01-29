@@ -159,10 +159,12 @@ void *service_connection(void *args)
     else if (connection->type == USER)
     {
         connection->user->socket = client_socket;
+        user = connection->user;
     }
     else if (connection->type == SERVER)
     {
-        connection->server->socket = client_socket;
+        chilog(DEBUG, "Provided with existing connection in service_connection");
+        server = connection->server;
     }    
 
     /*
@@ -173,8 +175,6 @@ void *service_connection(void *args)
 
     while(1)
     {
-        chilog(DEBUG, "Blocking before recv on server:");
-        chilog(DEBUG, ctx->this_server->servername);
         nbytes = recv(client_socket, &buffer[bytes_in_buffer],
                      (BUFFER_LEN - bytes_in_buffer), 0);
         if (nbytes == 0)
@@ -190,7 +190,7 @@ void *service_connection(void *args)
         while (strstr(tmp, "\r\n") != NULL)
         {
             memset(&msg, 0, sizeof(msg));
-            chilog(DEBUG, "Message received: ");
+            chilog(DEBUG, "Message received on server %s: ", ctx->this_server->servername);
             chilog(DEBUG, tmp);
             nbytes = chirc_message_from_string(&msg, tmp);
 
@@ -233,6 +233,7 @@ void *service_connection(void *args)
 
             if (connection->type == USER)
             {
+                chilog(DEBUG, "In USER connection handler for server %s", ctx->this_server->servername);
                 for(i=0; i<num_user_handlers; i++)
                 {
                     if (!strcmp(user_handlers[i].name, cmd))
@@ -264,6 +265,7 @@ void *service_connection(void *args)
             }
             else if (connection->type == SERVER)
             {
+                chilog(DEBUG, "In SERVER connection handler for server %s", ctx->this_server->servername);
                 for(i=0; i<num_server_handlers; i++)
                 {
                     if (!strcmp(server_handlers[i].name, cmd))
@@ -279,6 +281,11 @@ void *service_connection(void *args)
                         break;
                     }
                 }
+            }
+            else
+            {
+                chilog(DEBUG, "UNKNOWN type for server %s, doing nothing", ctx->this_server->servername);
+
             }
         }
         /* Clear Buffer */

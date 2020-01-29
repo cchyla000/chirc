@@ -1432,6 +1432,9 @@ int handle_CONNECT_USER(struct ctx_t *ctx, struct chirc_message_t *msg,
         }
         else
         {
+            found_server->is_registered = true;
+            found_server->socket = client_socket;
+
             chirc_message_construct(&reply_msg, this_server->servername,
                                 "PASS");
             chirc_message_add_parameter(&reply_msg, found_server->password, false);
@@ -1446,7 +1449,6 @@ int handle_CONNECT_USER(struct ctx_t *ctx, struct chirc_message_t *msg,
             chirc_message_add_parameter(&reply_msg, "chirc server", true);
             send_message_to_server(&reply_msg, found_server);
          
-            found_server->is_registered = true;
             ctx->num_clients += 1;
             wa = calloc(1, sizeof(struct worker_args));
             wa->socket = client_socket;
