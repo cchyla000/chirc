@@ -143,6 +143,13 @@ static int server_complete_registration(struct ctx_t *ctx,
         chirc_message_add_parameter(&reply_msg, "chirc server", true);
         error = send_message_to_server(&reply_msg, server);
         chilog(DEBUG, "Sent PASS and SERVER replies");
+
+        server->is_registered = true;
+        strncpy(server->password, network_server->password, MAX_PASSWORD_LEN);
+        strncpy(server->port, network_server->port, MAX_PORT_LEN);
+
+        HASH_DEL(ctx->servers, network_server);
+        HASH_ADD_STR(ctx->servers, servername, server);
     }
     return error;
 }
