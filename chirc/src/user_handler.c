@@ -1445,13 +1445,18 @@ int handle_CONNECT_USER(struct ctx_t *ctx, struct chirc_message_t *msg,
             chirc_message_add_parameter(&reply_msg, "1", false);
             chirc_message_add_parameter(&reply_msg, "chirc server", true);
             send_message_to_server(&reply_msg, found_server);
-
+         
+            found_server->is_registered = true;
             ctx->num_clients += 1;
             wa = calloc(1, sizeof(struct worker_args));
             wa->socket = client_socket;
             wa->ctx = ctx;
             wa->client_addr = p->ai_addr;
-            
+
+            wa->connection = calloc(1, sizeof(struct chirc_connection_t));
+            wa->connection->type = SERVER;
+            wa->connection->server = found_server;
+
             if (pthread_create(&worker_thread, NULL, service_connection, wa) != 0)
             {
                 perror("Could not create a worker thread");

@@ -141,17 +141,30 @@ void *service_connection(void *args)
     wa = (struct worker_args*) args;
     client_socket = wa->socket;
     ctx = wa->ctx;
+    connection = wa->connection;
 
-    /* Create user struct */
-    connection = calloc(1, sizeof(struct chirc_connection_t));
-    connection->type = UNKNOWN;
-    if (set_host_name(hostname, wa) == -1)
+    /* Create connection struct */
+    if (connection == NULL)
     {
-        close(client_socket);
-        free(wa);
-        free(connection);
-        pthread_exit(NULL);
+        connection = calloc(1, sizeof(struct chirc_connection_t));
+        connection->type = UNKNOWN;
+        if (set_host_name(hostname, wa) == -1)
+        {
+            close(client_socket);
+            free(wa);
+            free(connection);
+            pthread_exit(NULL);
+        }
     }
+    else if (connection->type == USER)
+    {
+        connection->user->socket = client_socket;
+    }
+    else if (connection->type == SERVER)
+    {
+        connection->server->socket = client_socket;
+    }    
+
     /*
      * Tells the pthread library that no other thread is going to
      * join() this thread, so we can free its resources at termination

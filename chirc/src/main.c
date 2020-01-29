@@ -321,6 +321,7 @@ int main(int argc, char *argv[])
         wa->socket = client_socket;
         wa->ctx = ctx;
         wa->client_addr = (struct sockaddr *) client_addr;
+        wa->connection = NULL;
         if (pthread_create(&worker_thread, NULL, service_connection, wa) != 0)
         {
             perror("Could not create a worker thread");

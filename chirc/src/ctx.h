@@ -42,6 +42,7 @@ struct worker_args
        IP address if hostname cannot be resolved, as IRC specs require */
     struct sockaddr *client_addr;
     struct ctx_t *ctx;
+    struct chirc_connection_t *connection;
 };
 
 #endif /* CHIRC_CTX_H */
