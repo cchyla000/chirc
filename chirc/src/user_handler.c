@@ -151,15 +151,25 @@ static int send_welcome_messages(struct ctx_t *ctx, struct chirc_user_t *user)
 
     pthread_mutex_lock(&ctx->users_lock);
     int registered_users = HASH_COUNT(ctx->users);
-    int unknown_clients = ctx->unknown_clients;
-    int connected_clients = ctx->connected_clients;
     pthread_mutex_unlock(&ctx->users_lock);
+
+    struct chirc_server_t *tmp_server, *tmp;
+    int total_num_servers = 1;  // Start at 1 for this_server, which is not in hash
+    pthread_mutex_lock(&ctx->servers_lock);
+    HASH_ITER(hh, ctx->servers, tmp_server, tmp)
+    {
+        if (tmp_server->is_registered)
+        {
+            total_num_servers++;
+        }
+    }
+    pthread_mutex_unlock(&ctx->servers_lock);
 
     /* RPL_LUSERCLIENT */
     chirc_message_construct(&msg, server->servername, RPL_LUSERCLIENT);
     chirc_message_add_parameter(&msg, user->nickname, false);
     sprintf(param_buffer, "There are %d users and %d services on %d servers",
-                                                        registered_users, 0, 1);
+            registered_users, 0, total_num_servers);
     chirc_message_add_parameter(&msg, param_buffer, true);
     error = send_message(&msg, user);
     if (error)
@@ -171,7 +181,8 @@ static int send_welcome_messages(struct ctx_t *ctx, struct chirc_user_t *user)
     /* Send RPL_LUSEROP */
     chirc_message_construct(&msg, server->servername, RPL_LUSEROP);
     chirc_message_add_parameter(&msg, user->nickname, false);
-    chirc_message_add_parameter(&msg, "0", false);
+    sprintf(param_buffer, "%d", ctx->num_operators);
+    chirc_message_add_parameter(&msg, param_buffer, false);
     chirc_message_add_parameter(&msg, "operator(s) online", true);
     error = send_message(&msg, user);
     if (error)
@@ -183,7 +194,8 @@ static int send_welcome_messages(struct ctx_t *ctx, struct chirc_user_t *user)
     /* Send RPL_LUSERUNKNOWN */
     chirc_message_construct(&msg, server->servername, RPL_LUSERUNKNOWN);
     chirc_message_add_parameter(&msg, user->nickname, false);
-    sprintf(param_buffer, "%d", unknown_clients);
+    sprintf(param_buffer, "%d",
+            ctx->num_direct_connections - ctx->num_direct_users - ctx->num_direct_servers);
     chirc_message_add_parameter(&msg, param_buffer, false);
     chirc_message_add_parameter(&msg, "unknown connection(s)", true);
     error = send_message(&msg, user);
@@ -214,8 +226,8 @@ static int send_welcome_messages(struct ctx_t *ctx, struct chirc_user_t *user)
     /* Send RPL_LUSERME */
     chirc_message_construct(&msg, server->servername, RPL_LUSERME);
     chirc_message_add_parameter(&msg, user->nickname, false);
-    sprintf(param_buffer, "I have %d clients and 1 servers",
-            connected_clients);
+    sprintf(param_buffer, "I have %d clients and %d servers",
+            ctx->num_direct_users, ctx->num_direct_servers);
     chirc_message_add_parameter(&msg, param_buffer, true);
     error = send_message(&msg, user);
     if (error)
@@ -556,6 +568,9 @@ int handle_QUIT_USER(struct ctx_t *ctx, struct chirc_message_t *msg,
         pthread_mutex_unlock(&channel->lock);
     }
     send_message(&reply_msg_to_user, user);
+    HASH_DEL(ctx->users, user);
+    ctx->num_direct_users--;
+    ctx->num_direct_connections--;
     return 0;  // return error code so user is destroyed and exits
 }
 
@@ -738,6 +753,8 @@ int handle_LUSERS_USER(struct ctx_t *ctx, struct chirc_message_t *msg,
 {
     int error = handle_not_registered(ctx, user);
     struct chirc_server_t *server = ctx->this_server;
+    struct chirc_server_t *tmp_server, *tmp;
+
     if (error)
     {
         return error;
@@ -751,12 +768,21 @@ int handle_LUSERS_USER(struct ctx_t *ctx, struct chirc_message_t *msg,
 
     pthread_mutex_lock(&ctx->users_lock);
     int registered_users = HASH_COUNT(ctx->users);
-    int unknown_clients = ctx->unknown_clients;
-    int connected_clients = ctx->connected_clients;
     pthread_mutex_unlock(&ctx->users_lock);
 
+    int total_num_servers = 1;  // Start at 1 for this_server, which is not in hash
+    pthread_mutex_lock(&ctx->servers_lock);
+    HASH_ITER(hh, ctx->servers, tmp_server, tmp)
+    {
+        if (tmp_server->is_registered)
+        {
+            total_num_servers++;
+        }
+    }
+    pthread_mutex_unlock(&ctx->servers_lock);
+
     sprintf(param_buffer, "There are %d users and %d services on %d servers",
-                                                        registered_users, 0, 1);
+            registered_users, 0, total_num_servers);
 
     chirc_message_add_parameter(&reply_msg, param_buffer, true);
     error = send_message(&reply_msg, user);
@@ -769,7 +795,8 @@ int handle_LUSERS_USER(struct ctx_t *ctx, struct chirc_message_t *msg,
     /* Send RPL_LUSEROP */
     chirc_message_construct(&reply_msg, server->servername, RPL_LUSEROP);
     chirc_message_add_parameter(&reply_msg, user->nickname, false);
-    chirc_message_add_parameter(&reply_msg, "0", false);
+    sprintf(param_buffer, "%d", ctx->num_operators);
+    chirc_message_add_parameter(&reply_msg, param_buffer, false);
     chirc_message_add_parameter(&reply_msg, "operator(s) online", true);
     error = send_message(&reply_msg, user);
     if (error)
@@ -781,7 +808,8 @@ int handle_LUSERS_USER(struct ctx_t *ctx, struct chirc_message_t *msg,
     /* Send RPL_LUSERUNKNOWN */
     chirc_message_construct(&reply_msg, server->servername, RPL_LUSERUNKNOWN);
     chirc_message_add_parameter(&reply_msg, user->nickname, false);
-    sprintf(param_buffer, "%d", unknown_clients);
+    sprintf(param_buffer, "%d",
+            ctx->num_direct_connections - ctx->num_direct_users - ctx->num_direct_servers);
     chirc_message_add_parameter(&reply_msg, param_buffer, false);
     chirc_message_add_parameter(&reply_msg, "unknown connection(s)", true);
     error = send_message(&reply_msg, user);
@@ -810,8 +838,8 @@ int handle_LUSERS_USER(struct ctx_t *ctx, struct chirc_message_t *msg,
     /* Send RPL_LUSERME */
     chirc_message_construct(&reply_msg, server->servername, RPL_LUSERME);
     chirc_message_add_parameter(&reply_msg, user->nickname, false);
-    sprintf(param_buffer, "I have %d clients and 1 servers",
-            registered_users);
+    sprintf(param_buffer, "I have %d clients and %d servers",
+            ctx->num_direct_users, ctx->num_direct_servers);
     chirc_message_add_parameter(&reply_msg, param_buffer, true);
     error = send_message(&reply_msg, user);
     if (error)
@@ -1022,7 +1050,6 @@ int handle_JOIN_USER(struct ctx_t *ctx, struct chirc_message_t *msg,
     {
         return -1;
     }
-    chirc_message_clear(&local_msg);
 
     return 0;
 }
@@ -1404,10 +1431,6 @@ int handle_CONNECT_USER(struct ctx_t *ctx, struct chirc_message_t *msg,
         chirc_message_add_parameter(&reply_msg, "No such server", true);
         error = send_message(&reply_msg, user);
     }
-    else if (found_server->is_registered)
-    {
-        // What error message??
-    }
     else
     {
         memset(&hints, 0, sizeof(hints));
@@ -1460,7 +1483,6 @@ int handle_CONNECT_USER(struct ctx_t *ctx, struct chirc_message_t *msg,
             chirc_message_add_parameter(&reply_msg, "chirc server", true);
             send_message_to_server(&reply_msg, found_server);
 
-            ctx->num_clients += 1;
             wa = calloc(1, sizeof(struct worker_args));
             wa->socket = client_socket;
             wa->ctx = ctx;

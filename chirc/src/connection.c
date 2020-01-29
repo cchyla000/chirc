@@ -142,6 +142,7 @@ void *service_connection(void *args)
     client_socket = wa->socket;
     ctx = wa->ctx;
     connection = wa->connection;
+    ctx->num_direct_connections++;
 
     /* Create connection struct */
     if (connection == NULL)
@@ -153,6 +154,7 @@ void *service_connection(void *args)
             close(client_socket);
             free(wa);
             free(connection);
+            ctx->num_direct_connections--;
             pthread_exit(NULL);
         }
     }
@@ -160,12 +162,16 @@ void *service_connection(void *args)
     {
         connection->user->socket = client_socket;
         user = connection->user;
+        ctx->num_direct_users++;
     }
     else if (connection->type == SERVER)
     {
         chilog(DEBUG, "Provided with existing connection in service_connection");
         server = connection->server;
-    }    
+        ctx->num_direct_servers++;
+    }
+
+
 
     /*
      * Tells the pthread library that no other thread is going to
@@ -208,6 +214,7 @@ void *service_connection(void *args)
                     strncpy(user->hostname, hostname, MAX_HOST_LEN);
                     user->socket = client_socket;
                     pthread_mutex_init(&user->lock, NULL);
+                    ctx->num_direct_users++;
                 }
                 else if (!strcmp("PASS", cmd) || (!strcmp("SERVER", cmd)))
                 {
@@ -216,6 +223,7 @@ void *service_connection(void *args)
                     strncpy(server->hostname, hostname, MAX_HOST_LEN);
                     server->socket = client_socket;
                     pthread_mutex_init(&server->lock, NULL);
+                    ctx->num_direct_servers++;
                 }
                 else
                 {
@@ -316,7 +324,7 @@ void destroy_connection(struct chirc_connection_t *connection, struct ctx_t *ctx
     /* Remove user from the ctx hash of users */
     if (connection->type == USER)
     {
-
+        ctx->num_direct_users--;
         user = connection->user;
         pthread_mutex_lock(&user->lock);
         pthread_mutex_lock(&ctx->users_lock);
@@ -351,10 +359,12 @@ void destroy_connection(struct chirc_connection_t *connection, struct ctx_t *ctx
     else if (connection->type == SERVER)
     {
         server = connection->server;
+        ctx->num_direct_servers--;
         free(server);
     }
 
-    ctx->num_clients--;
+    ctx->num_direct_connections--;
+
     free(connection);
 
 }

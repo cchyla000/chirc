@@ -25,10 +25,12 @@ struct ctx_t
     struct chirc_server_t *servers;  // Servers connected to this server
     struct chirc_server_t *this_server;
     char date_created[DATE_LEN];
-    int num_clients;
-    int unknown_clients;
-    int connected_clients;
+
+    int num_direct_connections;
+    int num_direct_servers;
+    int num_direct_users;
     int num_operators;
+
     pthread_mutex_t users_lock;
     pthread_mutex_t channels_lock;
     pthread_mutex_t servers_lock;
