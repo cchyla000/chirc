@@ -1,71 +1,12 @@
+#include <stdio.h>
+
 #include "server_handler.h"
 #include "reply.h"
-#include <stdio.h>
 #include "log.h"
 
-static int send_message_to_server(struct chirc_message_t *msg, struct chirc_server_t *server)
-{
-    int nbytes;
-    char to_send[MAX_MSG_LEN + 1] = {0};
-    chirc_message_to_string(msg, to_send);
-
-    pthread_mutex_lock(&server->lock);
-    nbytes = send(server->socket, to_send, strlen(to_send), 0);
-    pthread_mutex_unlock(&server->lock);
-
-    if (nbytes == -1)
-    {
-        return -1;
-    }
-
-    return 0;
-}
-
-static int send_message(struct chirc_message_t *msg, struct chirc_user_t *user)
-{
-    int nbytes;
-    char to_send[MAX_MSG_LEN + 1] = {0};
-    chirc_message_to_string(msg, to_send);
-
-    pthread_mutex_lock(&user->lock);
-    nbytes = send(user->socket, to_send, strlen(to_send), 0);
-    pthread_mutex_unlock(&user->lock);
-
-    if (nbytes == -1)
-    {
-        return -1;
-    }
-
-    return 0;
-}
-
-static int handle_not_registered(struct ctx_t *ctx, struct chirc_server_t *server)
-{
-    int error;
-    struct chirc_message_t reply_msg;
-    chirc_message_clear(&reply_msg);
-    struct chirc_server_t *this_server = ctx->this_server;
-
-    if (!server->is_registered)
-    {
-        chirc_message_construct(&reply_msg, this_server->servername,
-                                ERR_NOTREGISTERED);
-        chirc_message_add_parameter(&reply_msg, server->servername, false);
-        chirc_message_add_parameter(&reply_msg, "You have not registered",
-                                    true);
-        error = send_message_to_server(&reply_msg, server);
-        if (error)
-        {
-            return -1;
-        }
-        else
-        {
-            return 1;
-        }
-    }
-    return 0;
-}
-
+/* Given a server, a message, and the desired number of parameters, sends the
+ * ERR_NEEDMOREPARAMS response to the server if the message does not have
+ * enough parameters. */
 static int handle_not_enough_parameters(struct ctx_t *ctx,
             struct chirc_message_t *msg, struct chirc_server_t *server, int nparams)
 {
@@ -94,6 +35,8 @@ static int handle_not_enough_parameters(struct ctx_t *ctx,
     return error;
 }
 
+/* Responds to a server that sends PASS and SERVER messages, and registers the
+ * the server if was unregistered previously */
 static int server_complete_registration(struct ctx_t *ctx,
              struct chirc_message_t *msg, struct chirc_server_t *server)
 {
@@ -173,6 +116,8 @@ static int server_complete_registration(struct ctx_t *ctx,
     return error;
 }
 
+/* Sends a given message to all servers connected to this server, except for
+ * a given server (probably the server sending the original message) */
 static int forward_to_other_servers(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_server_t *server)
 {
     for (struct chirc_server_t *other_server = ctx->servers; other_server != NULL;
@@ -199,7 +144,7 @@ int handle_NICK_SERVER(struct ctx_t *ctx, struct chirc_message_t *msg,
     {
         return 0;
     }
-
+    /* copy all information from the message to a new user in the context */
     strcpy(user->nickname, msg->params[0]);
     strcpy(user->username, msg->params[2]);
     strcpy(user->hostname, msg->params[3]);
@@ -212,18 +157,6 @@ int handle_NICK_SERVER(struct ctx_t *ctx, struct chirc_message_t *msg,
     pthread_mutex_lock(&ctx->users_lock);
     HASH_ADD_STR(ctx->users, nickname, user);
     pthread_mutex_unlock(&ctx->users_lock);
-    return 0;
-}
-
-int handle_USER_SERVER(struct ctx_t *ctx, struct chirc_message_t *msg,
-                                         struct chirc_server_t *server)
-{
-    return 0;
-}
-
-int handle_QUIT_SERVER(struct ctx_t *ctx, struct chirc_message_t *msg,
-                                         struct chirc_server_t *server)
-{
     return 0;
 }
 
@@ -247,10 +180,13 @@ int handle_PRIVMSG_SERVER(struct ctx_t *ctx, struct chirc_message_t *msg,
     pthread_mutex_unlock(&ctx->channels_lock);
     if (recipient && recipient->is_on_server)
     {
+        /* recipient is a user on this server, so send to them */
         send_message(msg, recipient);
     }
     else if (recipient_channel)
     {
+      /* recipient is a channel, so send to all users on this server that
+       * are a part of the server */
       for (user_container=recipient_channel->users; user_container != NULL;
                                      user_container=user_container->hh.next)
       {
@@ -260,36 +196,8 @@ int handle_PRIVMSG_SERVER(struct ctx_t *ctx, struct chirc_message_t *msg,
           }
       }
     }
-    return 0;
-}
-
-int handle_NOTICE_SERVER(struct ctx_t *ctx, struct chirc_message_t *msg,
-                                         struct chirc_server_t *server)
-{
-    return 0;
-}
-
-int handle_PING_SERVER(struct ctx_t *ctx, struct chirc_message_t *msg,
-                                         struct chirc_server_t *server)
-{
-    return 0;
-}
-
-int handle_PONG_SERVER(struct ctx_t *ctx, struct chirc_message_t *msg,
-                                         struct chirc_server_t *server)
-{
-    return 0;
-}
-
-int handle_LUSERS_SERVER(struct ctx_t *ctx, struct chirc_message_t *msg,
-                                         struct chirc_server_t *server)
-{
-    return 0;
-}
-
-int handle_WHOIS_SERVER(struct ctx_t *ctx, struct chirc_message_t *msg,
-                                         struct chirc_server_t *server)
-{
+    /* If recipient is a user not on this server, this is not an error, the
+     * message simply gets forwarded to other servers */
     return 0;
 }
 
@@ -324,7 +232,7 @@ int handle_JOIN_SERVER(struct ctx_t *ctx, struct chirc_message_t *msg,
         user_container->is_channel_operator = true;
         pthread_mutex_unlock(&channel->lock);
     }
-
+    /* Send to users on this server that are on the channel */
     for (user_container=channel->users; user_container != NULL;
                                    user_container=user_container->hh.next)
     {
@@ -336,30 +244,6 @@ int handle_JOIN_SERVER(struct ctx_t *ctx, struct chirc_message_t *msg,
     return 0;
 }
 
-int handle_MODE_SERVER(struct ctx_t *ctx, struct chirc_message_t *msg,
-                                         struct chirc_server_t *server)
-{
-    return 0;
-}
-
-int handle_LIST_SERVER(struct ctx_t *ctx, struct chirc_message_t *msg,
-                                         struct chirc_server_t *server)
-{
-    return 0;
-}
-
-int handle_OPER_SERVER(struct ctx_t *ctx, struct chirc_message_t *msg,
-                                         struct chirc_server_t *server)
-{
-    return 0;
-}
-
-int handle_PART_SERVER(struct ctx_t *ctx, struct chirc_message_t *msg,
-                                         struct chirc_server_t *server)
-{
-    return 0;
-}
-
 int handle_PASS_SERVER(struct ctx_t *ctx, struct chirc_message_t *msg,
                                          struct chirc_server_t *server)
 {
@@ -367,8 +251,6 @@ int handle_PASS_SERVER(struct ctx_t *ctx, struct chirc_message_t *msg,
     struct chirc_message_t reply_msg;
     chirc_message_clear(&reply_msg);
     struct chirc_server_t *this_server = ctx->this_server;
-
-//    chilog(DEBUG, "In handle_PASS in server %s for server %s", this_server->servername, server->servername);
 
     chilog(DEBUG, "received server is_registered = %d", server->is_registered);
 

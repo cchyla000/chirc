@@ -17,6 +17,8 @@
 
 enum connection_type { UNKNOWN, USER, SERVER };
 
+/* Struct to keep track of an individual server's information. Contains
+ * connection information if the server has connected to this server. */
 struct chirc_server_t {
     char servername[MAX_SERVER_LEN + 1];
     char password[MAX_PASSWORD_LEN + 1];
@@ -29,7 +31,7 @@ struct chirc_server_t {
     UT_hash_handle hh;
 };
 
-/* Struct to keep track of an individual user's informaion and its connection */
+/* Struct to keep track of an individual user's information and its connection */
 struct chirc_user_t {
     char nickname[MAX_NICK_LEN + 1];
     char username[MAX_USER_LEN + 1];
@@ -45,7 +47,8 @@ struct chirc_user_t {
     bool is_registered;
     pthread_mutex_t lock;
     UT_hash_handle hh;
-    struct chirc_server_t *server;  // The server the user is on. NULL if on this server
+    /* The server the user is connected to. */
+    struct chirc_server_t *server;
 };
 
 /* Struct to accommadate uthash's inability to have the same pointer in more
@@ -58,6 +61,7 @@ struct chirc_user_cont_t {
     UT_hash_handle hh;
 };
 
+/* Struct that contains either a pointer to a user or server and indicates which. */
 struct chirc_connection_t {
     enum connection_type type;
     struct chirc_user_t *user; // is NULL if not user
@@ -70,6 +74,15 @@ struct chirc_connection_t {
  * handler using a dispath table. */
 void *service_connection(void *args);
 
+/* Frees a connection (user or server) and all of its information */
 void destroy_connection(struct chirc_connection_t *connection, struct ctx_t *ctx);
+
+/* Sends a message to a given user and does error checking; terminates
+ * thread and destroys user if error in sending detected */
+int send_message(struct chirc_message_t *msg, struct chirc_user_t *user);
+
+/* Sends a message to a given server and does error checking; terminates
+ * thread and destroys user if error in sending detected */
+int send_message_to_server(struct chirc_message_t *msg, struct chirc_server_t *server);
 
 #endif /* CHIRC_CONNECTION_H */
