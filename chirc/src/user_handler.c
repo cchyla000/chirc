@@ -1432,11 +1432,26 @@ int handle_CONNECT_USER(struct ctx_t *ctx, struct chirc_message_t *msg,
         }
         else
         {
+            chirc_message_construct(&reply_msg, this_server->servername,
+                                "PASS");
+            chirc_message_add_parameter(&reply_msg, found_server->password, false);
+            chirc_message_add_parameter(&reply_msg, "0210", false);
+            chirc_message_add_parameter(&reply_msg, "chirc|0.5.1", false);
+            send_message_to_server(&reply_msg, found_server);
+
+            chirc_message_construct(&reply_msg, this_server->servername,
+                                    "SERVER");
+            chirc_message_add_parameter(&reply_msg, this_server->servername, false);
+            chirc_message_add_parameter(&reply_msg, "1", false);
+            chirc_message_add_parameter(&reply_msg, "chirc server", true);
+            send_message_to_server(&reply_msg, found_server);
+
             ctx->num_clients += 1;
             wa = calloc(1, sizeof(struct worker_args));
             wa->socket = client_socket;
             wa->ctx = ctx;
             wa->client_addr = p->ai_addr;
+            
             if (pthread_create(&worker_thread, NULL, service_connection, wa) != 0)
             {
                 perror("Could not create a worker thread");
