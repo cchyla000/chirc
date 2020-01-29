@@ -250,9 +250,6 @@ int main(int argc, char *argv[])
     hints.ai_socktype = SOCK_STREAM;
     hints.ai_flags = AI_PASSIVE;
 
-    chilog(DEBUG, "Port is:");
-    chilog(DEBUG, server->port);
-
     if (getaddrinfo(NULL, server->port, &hints, &res) != 0)
     {
         perror("getaddrinfo() failed");
@@ -323,7 +320,6 @@ int main(int argc, char *argv[])
         wa->socket = client_socket;
         wa->ctx = ctx;
         wa->client_addr = (struct sockaddr *) client_addr;
-        chilog(DEBUG, "About to create worker thread");
         if (pthread_create(&worker_thread, NULL, service_connection, wa) != 0)
         {
             perror("Could not create a worker thread");

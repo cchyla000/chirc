@@ -160,6 +160,8 @@ void *service_connection(void *args)
 
     while(1)
     {
+        chilog(DEBUG, "Blocking before recv on server:");
+        chilog(DEBUG, ctx->this_server->servername);
         nbytes = recv(client_socket, &buffer[bytes_in_buffer],
                      (BUFFER_LEN - bytes_in_buffer), 0);
         if (nbytes == 0)
@@ -175,7 +177,10 @@ void *service_connection(void *args)
         while (strstr(tmp, "\r\n") != NULL)
         {
             memset(&msg, 0, sizeof(msg));
+            chilog(DEBUG, "Message received: ");
+            chilog(DEBUG, tmp);
             nbytes = chirc_message_from_string(&msg, tmp);
+
             /* Point to beginning of next msg if present. */
             tmp += (nbytes + 1);
             /* Send msg to handler */
