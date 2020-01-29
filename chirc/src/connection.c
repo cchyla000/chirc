@@ -185,10 +185,8 @@ void *service_connection(void *args)
 
             if (connection->type == UNKNOWN)
             {
-                chilog(DEBUG, "Connection type unknown");
                 if (!strcmp("NICK", cmd) || (!strcmp("USER", cmd)))
                 {
-                    chilog(DEBUG, "Setting connection type to user");
                     connection->type = USER;
                     user = calloc(1, sizeof(struct chirc_user_t));
                     strncpy(user->hostname, hostname, MAX_HOST_LEN);
@@ -205,16 +203,18 @@ void *service_connection(void *args)
                 }
                 else
                 {
+                  /*
                     chirc_message_construct(&reply_msg, server->servername,
                                             ERR_NOTREGISTERED);
                     chirc_message_add_parameter(&reply_msg, NULL, false);
-                    chirc_message_add_parameter(&reply_msg, 
+                    chirc_message_add_parameter(&reply_msg,
                                         "You have not registered", true);
                     chirc_message_to_string(&reply_msg, tosend);
                     send(client_socket, tosend, strlen(tosend), 0);
+                    */
                 }
             }
-            
+
             if (connection->type == USER)
             {
                 for(i=0; i<num_user_handlers; i++)
@@ -232,21 +232,21 @@ void *service_connection(void *args)
                         break;
                     }
                 }
-                if (i == num_user_handlers)
+                if (i == num_user_handlers && user->is_registered)
                 {
-                    chirc_message_construct(&reply_msg, 
-                                            ctx->this_server->servername, 
+                    chirc_message_construct(&reply_msg,
+                                            ctx->this_server->servername,
                                             ERR_UNKNOWNCOMMAND);
-                    chirc_message_add_parameter(&reply_msg, 
+                    chirc_message_add_parameter(&reply_msg,
                                                 user->nickname, false);
                     sprintf(prefix_buffer, "%s :Unknown command", cmd);
-                    chirc_message_add_parameter(&reply_msg, 
+                    chirc_message_add_parameter(&reply_msg,
                                                 prefix_buffer, false);
                     chirc_message_to_string(&reply_msg, tosend);
                     send(client_socket, tosend, strlen(tosend), 0);
-                } 
+                }
             }
-            else if (connection->type == SERVER)
+            else if (connection->type == SERVER && server->is_registered)
             {
                 for(i=0; i<num_server_handlers; i++)
                 {
@@ -293,6 +293,7 @@ void destroy_connection(struct chirc_connection_t *connection, struct ctx_t *ctx
     /* Remove user from the ctx hash of users */
     if (connection->type == USER)
     {
+
         user = connection->user;
         pthread_mutex_lock(&user->lock);
         pthread_mutex_lock(&ctx->users_lock);

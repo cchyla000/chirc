@@ -29,7 +29,6 @@ add_user_to_channel(struct chirc_channel_t *channel, struct chirc_user_t *user)
     strcpy(user_container->nickname, user->nickname);
     user_container->on_this_server = true;
     user_container->user = user;
-    user_container->server = NULL;
     struct chirc_channel_cont_t *channel_container;
     channel_container = calloc(1, sizeof(struct chirc_channel_cont_t));
     strcpy(channel_container->channel_name, channel->channel_name);
@@ -53,7 +52,6 @@ struct chirc_user_cont_t *add_network_user_to_channel(struct chirc_channel_t *ch
     strcpy(user_container->nickname, nickname);
     user_container->on_this_server = false;
     user_container->user = NULL;
-    user_container->server = server;
 
     pthread_mutex_lock(&channel->lock);
     HASH_ADD_STR(channel->users, nickname, user_container);

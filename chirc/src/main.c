@@ -170,6 +170,7 @@ int main(int argc, char *argv[])
         while (fgets(buffer, NI_MAXHOST, fp) != NULL)
         {
             rest = buffer;
+            chilog(DEBUG, buffer);
             for (i = 0; token = strtok_r(rest, ",", &rest); i++)
             {
                 switch (i)
@@ -225,7 +226,6 @@ int main(int argc, char *argv[])
     }
     else
     {
-        chilog(DEBUG, "No network file, init this server");
         server = calloc(1, sizeof (struct chirc_server_t));
         pthread_mutex_init(&server->lock, NULL);
         strncpy(server->password, passwd, MAX_PASSWORD_LEN);
@@ -233,7 +233,6 @@ int main(int argc, char *argv[])
         strncpy(server->port, port, MAX_PORT_LEN);
         server->is_registered = true;
         ctx->this_server = server;
-        chilog(DEBUG, "Done init this server");
     }
 
     int server_socket;
@@ -250,6 +249,9 @@ int main(int argc, char *argv[])
     hints.ai_family = AF_UNSPEC;
     hints.ai_socktype = SOCK_STREAM;
     hints.ai_flags = AI_PASSIVE;
+
+    chilog(DEBUG, "Port is:");
+    chilog(DEBUG, server->port);
 
     if (getaddrinfo(NULL, server->port, &hints, &res) != 0)
     {
@@ -288,42 +290,6 @@ int main(int argc, char *argv[])
             continue;
         }
 
-        /* Without network file, we must get hostname using getnameinfo() */
-        if (!network_file)
-        {
-            /* Get server hostname */
-            error = getnameinfo(p, sizeof(struct sockaddr_storage),
-                                buffer, NI_MAXHOST, NULL, 0, 0);
-            if (error)
-            {
-                perror("Failed to resolve server hostname");
-                close(server_socket);
-                continue;
-            }
-            else if (strlen(buffer) > MAX_HOST_LEN)
-            {
-                /* Full hostname is too long. Get numeric hostname instead */
-                error = getnameinfo(p, sizeof(struct sockaddr_storage),
-                                    buffer, MAX_HOST_LEN, NULL,
-                                    0, NI_NUMERICHOST);
-                if (error)
-                {
-                    perror("Failed to resolve server hostname");
-                    close(server_socket);
-                    continue;
-                }
-            }
-
-            strncpy(server->hostname, buffer, MAX_HOST_LEN);
-
-            /* If no different server_name is specified in arguments,
-               set the server_name to be the hostname as well. */
-            if (!server_name)
-            {
-                strncpy(server->servername, buffer, MAX_HOST_LEN);
-            }
-            break;
-        }
     }
 
     freeaddrinfo(res);
