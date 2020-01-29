@@ -171,7 +171,7 @@ int main(int argc, char *argv[])
         {
             rest = buffer;
             chilog(DEBUG, buffer);
-            for (i = 0; token = strtok_r(rest, ",", &rest); i++)
+            for (i = 0; token = strtok_r(rest, ",\n", &rest); i++)
             {
                 switch (i)
                 {
@@ -289,6 +289,8 @@ int main(int argc, char *argv[])
             close(server_socket);
             continue;
         }
+
+        break;
 
     }
 

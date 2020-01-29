@@ -1264,3 +1264,27 @@ int handle_OPER_USER(struct ctx_t *ctx, struct chirc_message_t *msg,
 
     return 0;
 }
+
+int handle_CONNECT_USER(struct ctx_t *ctx, struct chirc_message_t *msg,
+                                         struct chirc_user_t *user)
+{
+/*
+    int error;
+    struct chirc_message_t reply_msg;
+    chirc_message_clear(&reply_msg);
+    struct chirc_server_t *this_server = ctx->this_server;
+
+    if ((error = handle_not_enough_parameters(ctx, msg, user, 2)))
+    {
+        return error;
+    }
+    else if (!user->is_irc_operator)
+    {
+        chirc_message_construct(&reply_msg, user->nickname, ERR_NOPRIVILEGES);
+        chirc_message_add_parameter(&reply_msg, user->nickname, false);
+        chirc_message_add_parameter(&reply_msg, "Permission Denied- "
+                                    "You're not an IRC operator", true);
+    }
+
+*/
+}

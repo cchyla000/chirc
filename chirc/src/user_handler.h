@@ -35,4 +35,6 @@ int handle_OPER_USER(struct ctx_t *ctx, struct chirc_message_t *msg,
                                          struct chirc_user_t *user);
 int handle_PART_USER(struct ctx_t *ctx, struct chirc_message_t *msg,
                                          struct chirc_user_t *user);
+int handle_CONNECT_USER(struct ctx_t *ctx, struct chirc_message_t *msg,
+                                         struct chirc_user_t *user);
 #endif /* CHIRC_USER_HANDLER_H */

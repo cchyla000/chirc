@@ -65,6 +65,7 @@ struct user_handler_entry user_handlers[] = {
                                      USER_HANDLER_ENTRY(LIST),
                                      USER_HANDLER_ENTRY(OPER),
                                      USER_HANDLER_ENTRY(PART),
+                                     USER_HANDLER_ENTRY(CONNECT)
                                   };
 
 struct server_handler_entry server_handlers[] = {
@@ -83,8 +84,7 @@ struct server_handler_entry server_handlers[] = {
                                      SERVER_HANDLER_ENTRY(OPER),
                                      SERVER_HANDLER_ENTRY(PART),
                                      SERVER_HANDLER_ENTRY(PASS),
-                                     SERVER_HANDLER_ENTRY(SERVER),
-                                     SERVER_HANDLER_ENTRY(CONNECT),
+                                     SERVER_HANDLER_ENTRY(SERVER)
                                   };
 
 int num_user_handlers = sizeof(user_handlers) / sizeof(struct user_handler_entry);
@@ -152,7 +152,6 @@ void *service_connection(void *args)
         free(connection);
         pthread_exit(NULL);
     }
-    chilog(DEBUG, "Finished setting hostname");
     /*
      * Tells the pthread library that no other thread is going to
      * join() this thread, so we can free its resources at termination
@@ -175,7 +174,6 @@ void *service_connection(void *args)
         tmp = buffer;
         while (strstr(tmp, "\r\n") != NULL)
         {
-            chilog(DEBUG, "Command iteration");
             memset(&msg, 0, sizeof(msg));
             nbytes = chirc_message_from_string(&msg, tmp);
             /* Point to beginning of next msg if present. */
@@ -246,7 +244,7 @@ void *service_connection(void *args)
                     send(client_socket, tosend, strlen(tosend), 0);
                 }
             }
-            else if (connection->type == SERVER && server->is_registered)
+            else if (connection->type == SERVER)
             {
                 for(i=0; i<num_server_handlers; i++)
                 {
