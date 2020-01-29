@@ -35,13 +35,9 @@ struct chirc_channel_t *create_channel(struct ctx_t *ctx, char *channel_name);
 struct chirc_user_cont_t *add_user_to_channel(struct chirc_channel_t *channel,
                                                     struct chirc_user_t *user);
 
-struct chirc_user_cont_t *add_network_user_to_channel(struct chirc_channel_t *channel,
-                                  struct chirc_server_t *server, char *nickname);
-
 /* Removes a user from the hash of users in the channel, and removes the channel
  * from the hash of channels in the user */
 int remove_user_from_channel(struct chirc_channel_t *channel, struct chirc_user_t *user);
-int remove_network_user_from_channel(struct chirc_channel_t *channel, char *nickname);
 
 /* Removes a channel from the context and then frees the allocated memory */
 int destroy_channel(struct ctx_t *ctx, struct chirc_channel_t *channel);

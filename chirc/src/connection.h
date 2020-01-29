@@ -36,8 +36,10 @@ struct chirc_user_t {
     /* Host name limited to 63 chars in specifications, so
        real user name can realistically be similarly truncated: */
     char realusername[MAX_HOST_LEN + 1];
-    struct chirc_channel_cont_t *channels; // Hash of channels user is a part of
+    /* Hash of channels user is a part of */
+    struct chirc_channel_cont_t *channels;
     int socket;
+    bool is_on_server;
     bool is_irc_operator;
     bool is_registered;
     pthread_mutex_t lock;
@@ -49,7 +51,6 @@ struct chirc_user_t {
  * This also tells the user if they are an operator of the channel or not. */
 struct chirc_user_cont_t {
     char nickname[MAX_NICK_LEN + 1];
-    bool on_this_server;
     struct chirc_user_t *user; // is NULL if user not on this server
     bool is_channel_operator;
     UT_hash_handle hh;

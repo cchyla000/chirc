@@ -35,9 +35,52 @@ static int send_message(struct chirc_message_t *msg, struct chirc_user_t *user)
     return 0;
 }
 
+static int send_message_to_server(struct chirc_message_t *msg, struct chirc_user_t *server)
+{
+    int nbytes;
+    char to_send[MAX_MSG_LEN + 1] = {0};
+    chirc_message_to_string(msg, to_send);
+
+    pthread_mutex_lock(&server->lock);
+    nbytes = send(server->socket, to_send, strlen(to_send), 0);
+    pthread_mutex_unlock(&server->lock);
+
+    if (nbytes == -1)
+    {
+        return -1;
+    }
+
+    return 0;
+}
+
+static int send_nick_to_servers(struct ctx_t *ctx, struct chirc_user_t *user)
+{
+    struct chirc_message_t msg;
+    chirc_message_clear(&msg);
+    struct chirc_server_t *server = ctx->this_server;
+    chirc_message_construct(&msg, server->servername, "NICK");
+    chirc_message_add_parameter(&msg, user->nickname, false);
+    chirc_message_add_parameter(&msg, "1", false);
+    chirc_message_add_parameter(&msg, user->username, false);
+    chirc_message_add_parameter(&msg, user->hostname, false);
+    chirc_message_add_parameter(&msg, "1", false);
+    chirc_message_add_parameter(&msg, "+", false);
+    chirc_message_add_parameter(&msg, user->realusername, true);
+    pthread_mutex_lock(&ctx->servers_lock);
+    for (server = ctx->servers; server != NULL; server = server->hh.next)
+    {
+        if (server->is_registered)
+        {
+            send_message_to_server(&msg, server);
+        }
+    }
+    pthread_mutex_unlock(&ctx->servers_lock);
+}
+
 /* Sends Replies 001 to 004 to specified user upon successful registration */
 static int send_welcome_messages(struct ctx_t *ctx, struct chirc_user_t *user)
 {
+    send_nick_to_servers(ctx, user);
     char param_buffer[MAX_MSG_LEN + 1] = {0};
     struct chirc_message_t msg;
     int error;
@@ -251,41 +294,66 @@ static int forward_message_to_user_or_channel(struct ctx_t *ctx,
   struct chirc_message_t *msg, struct chirc_user_t *user,
   struct chirc_user_t *recipient, struct chirc_channel_t *recipient_channel)
 {
-    struct chirc_message_t reply_msg;
-    chirc_message_clear(&reply_msg);
-    char buffer[MAX_MSG_LEN + 1] = {0};
+    struct chirc_message_t local_msg; // message that gets sent to users on server
+    chirc_message_clear(&local_msg);
+    char local_buffer[MAX_MSG_LEN + 1] = {0};
+    struct chirc_message_t outgoing_msg; // message that gets sent to connected servers
+    chirc_message_clear(&outgoing_msg);
 
-    sprintf(buffer, "%s!%s@%s", user->nickname, user->username, user->hostname);
-    chirc_message_construct(&reply_msg, buffer, msg->cmd);
+    sprintf(local_buffer, "%s!%s@%s", user->nickname, user->username, user->hostname);
+    chirc_message_construct(&local_msg, local_buffer, msg->cmd);
+    chirc_message_construct(&outgoing_msg, user->nickname, msg->cmd);
     for (int i = 0; i < msg->nparams - 1; i++)
     {
-        chirc_message_add_parameter(&reply_msg, msg->params[i], false);
+        chirc_message_add_parameter(&local_msg, msg->params[i], false);
+        chirc_message_add_parameter(&outgoing_msg, msg->params[i], false);
     }
-    chirc_message_add_parameter(&reply_msg, msg->params[msg->nparams - 1], true);
-    reply_msg.longlast = msg->longlast;
+    chirc_message_add_parameter(&local_msg, msg->params[msg->nparams - 1], true);
+    chirc_message_add_parameter(&outgoing_msg, msg->params[msg->nparams - 1], true);
     if (recipient)
     {
-        /* Recipient is a user, so send to just that user */
-        send_message(&reply_msg, recipient);
+        if (recipient->is_on_server)
+        {
+            send_message(&local_msg, recipient);
+        }
+        else
+        {
+            pthread_mutex_lock(&ctx->servers_lock);
+            for (struct chirc_server_t *server = ctx->servers; server != NULL; server = server->hh.next)
+            {
+                if (server->is_registered)
+                {
+                    send_message_to_server(&outgoing_msg, server);
+                }
+            }
+            pthread_mutex_unlock(&ctx->servers_lock);
+        }
     }
     else
     {
-        /* Recipient is a channel, so send to all members of the channel */
+        /* Recipient is a channel, so send to all members of the channel
+         * and connected servers */
         struct chirc_user_t *user_in_channel;
-        struct chirc_user_cont_t*user_container;
+        struct chirc_user_cont_t *user_container;
+        struct chirc_server_t *server;
         pthread_mutex_lock(&recipient_channel->lock);
         for (user_container=recipient_channel->users; user_container != NULL;
                                        user_container=user_container->hh.next)
         {
-            pthread_mutex_unlock(&recipient_channel->lock);
-            user_in_channel = find_user_in_channel(ctx, recipient_channel,
-                                                  user_container->nickname);
-            pthread_mutex_lock(&recipient_channel->lock);
-            if (user != user_in_channel)
+            if (user_container->user->is_on_server)
             {
-                send_message(&reply_msg, user_in_channel);
+                send_message(&local_msg, user_container->user);
             }
         }
+        pthread_mutex_lock(&ctx->servers_lock);
+        for (server = ctx->servers; server != NULL; server = server->hh.next)
+        {
+            if (server->is_registered)
+            {
+                send_message_to_server(&outgoing_msg, server);
+            }
+        }
+        pthread_mutex_unlock(&ctx->servers_lock);
         pthread_mutex_unlock(&recipient_channel->lock);
     }
 }
