@@ -21,6 +21,24 @@ static int send_message_to_server(struct chirc_message_t *msg, struct chirc_serv
     return 0;
 }
 
+static int send_message(struct chirc_message_t *msg, struct chirc_user_t *user)
+{
+    int nbytes;
+    char to_send[MAX_MSG_LEN + 1] = {0};
+    chirc_message_to_string(msg, to_send);
+
+    pthread_mutex_lock(&user->lock);
+    nbytes = send(user->socket, to_send, strlen(to_send), 0);
+    pthread_mutex_unlock(&user->lock);
+
+    if (nbytes == -1)
+    {
+        return -1;
+    }
+
+    return 0;
+}
+
 static int handle_not_registered(struct ctx_t *ctx, struct chirc_server_t *server)
 {
     int error;
@@ -155,9 +173,33 @@ static int server_complete_registration(struct ctx_t *ctx,
     return error;
 }
 
+static int forward_to_other_servers(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_server_t *server)
+{
+    for (struct chirc_server_t *other_server = ctx->servers; other_server != NULL;
+                                          other_server = other_server->hh.next)
+    {
+        if (other_server->is_registered && other_server != server)
+        {
+            send_message_to_server(&msg, other_server);
+        }
+    }
+}
+
 int handle_NICK_SERVER(struct ctx_t *ctx, struct chirc_message_t *msg,
                                          struct chirc_server_t *server)
 {
+    forward_to_other_servers(ctx, msg, server);
+    struct chirc_user_t *user = calloc(1, sizeof(struct chirc_user_t));
+    strcpy(user->nickname, msg->params[0]);
+    strcpy(user->username, msg->params[2]);
+    strcpy(user->hostname, msg->params[3]);
+    strcpy(user->realusername, msg->params[6]);
+    user->is_registered = true;
+    user->is_on_server = false;
+    user->channels = NULL;
+    pthread_mutex_lock(&ctx->users_lock);
+    HASH_ADD_STR(ctx->users, nickname, user);
+    pthread_mutex_unlock(&ctx->users_lock);
     return 0;
 }
 
@@ -176,6 +218,36 @@ int handle_QUIT_SERVER(struct ctx_t *ctx, struct chirc_message_t *msg,
 int handle_PRIVMSG_SERVER(struct ctx_t *ctx, struct chirc_message_t *msg,
                                          struct chirc_server_t *server)
 {
+    forward_to_other_servers(ctx, msg, server);
+    struct chirc_user_t *recipient;
+    struct chirc_channel_t *recipient_channel;
+    struct chirc_user_cont_t *user_container;
+    char buffer[MAX_MSG_LEN + 1] = {0};
+    char recipient_nick[MAX_NICK_LEN + 1];
+    char recipient_ch_name[MAX_CHANNEL_NAME_LEN + 1];
+    strcpy(recipient_nick, msg->params[0]);
+    strcpy(recipient_ch_name, msg->params[0]);
+    pthread_mutex_lock(&ctx->users_lock);
+    HASH_FIND_STR(ctx->users, recipient_nick, recipient);
+    pthread_mutex_unlock(&ctx->users_lock);
+    pthread_mutex_lock(&ctx->channels_lock);
+    HASH_FIND_STR(ctx->channels, recipient_ch_name, recipient_channel);
+    pthread_mutex_unlock(&ctx->channels_lock);
+    if (recipient && recipient->is_on_server)
+    {
+        send_message(msg, recipient);
+    }
+    else if (recipient_channel)
+    {
+      for (user_container=recipient_channel->users; user_container != NULL;
+                                     user_container=user_container->hh.next)
+      {
+          if (user_container->user->is_on_server)
+          {
+              send_message(msg, user_container->user);
+          }
+      }
+    }
     return 0;
 }
 
@@ -212,6 +284,43 @@ int handle_WHOIS_SERVER(struct ctx_t *ctx, struct chirc_message_t *msg,
 int handle_JOIN_SERVER(struct ctx_t *ctx, struct chirc_message_t *msg,
                                          struct chirc_server_t *server)
 {
+    forward_to_other_servers(ctx, msg, server);
+    char channel_name[MAX_CHANNEL_NAME_LEN + 1];
+    strcpy(channel_name, msg->params[0]);
+    char nickname[MAX_NICK_LEN + 1];
+    strcpy(nickname, msg->prefix);
+    struct chirc_channel_t *channel;
+    struct chirc_user_cont_t *user_container;
+    pthread_mutex_lock(&ctx->channels_lock);
+    HASH_FIND_STR(ctx->channels, channel_name, channel);
+    pthread_mutex_unlock(&ctx->channels_lock);
+    struct chirc_user_t *user = NULL;
+    pthread_mutex_lock(&ctx->users_lock);
+    HASH_FIND_STR(ctx->users, nickname, user);
+    pthread_mutex_unlock(&ctx->users_lock);
+    if (channel)
+    {
+        add_user_to_channel(channel, user);
+    }
+    else
+    {
+        /* Channel does not exist, create channel */
+        channel = create_channel(ctx, channel_name);
+        user_container = add_user_to_channel(channel, user);
+        /* First user in channel should be channel operator: */
+        pthread_mutex_lock(&channel->lock);
+        user_container->is_channel_operator = true;
+        pthread_mutex_unlock(&channel->lock);
+    }
+
+    for (user_container=channel->users; user_container != NULL;
+                                   user_container=user_container->hh.next)
+    {
+        if (user_container->user->is_on_server)
+        {
+            send_message(msg, user_container->user);
+        }
+    }
     return 0;
 }
 
