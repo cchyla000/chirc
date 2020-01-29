@@ -27,7 +27,6 @@ add_user_to_channel(struct chirc_channel_t *channel, struct chirc_user_t *user)
     struct chirc_user_cont_t *user_container;
     user_container = calloc(1, sizeof(struct chirc_user_cont_t));
     strcpy(user_container->nickname, user->nickname);
-    user_container->on_this_server = true;
     user_container->user = user;
     struct chirc_channel_cont_t *channel_container;
     channel_container = calloc(1, sizeof(struct chirc_channel_cont_t));
@@ -39,23 +38,6 @@ add_user_to_channel(struct chirc_channel_t *channel, struct chirc_user_t *user)
     HASH_ADD_STR(user->channels, channel_name, channel_container);
     channel->nusers++;
     pthread_mutex_unlock(&user->lock);
-    pthread_mutex_unlock(&channel->lock);
-
-    return user_container;
-}
-
-struct chirc_user_cont_t *add_network_user_to_channel(struct chirc_channel_t *channel,
-                                  struct chirc_server_t *server, char *nickname)
-{
-    struct chirc_user_cont_t *user_container;
-    user_container = calloc(1, sizeof(struct chirc_user_cont_t));
-    strcpy(user_container->nickname, nickname);
-    user_container->on_this_server = false;
-    user_container->user = NULL;
-
-    pthread_mutex_lock(&channel->lock);
-    HASH_ADD_STR(channel->users, nickname, user_container);
-    channel->nusers++;
     pthread_mutex_unlock(&channel->lock);
 
     return user_container;
@@ -78,21 +60,6 @@ int remove_user_from_channel(struct chirc_channel_t *channel,
     free(channel_container);
     channel->nusers--;
     pthread_mutex_unlock(&user->lock);
-    pthread_mutex_unlock(&channel->lock);
-
-    return 0;
-}
-
-
-int remove_network_user_from_channel(struct chirc_channel_t *channel, char *nickname)
-{
-    struct chirc_user_cont_t *user_container;
-
-    pthread_mutex_lock(&channel->lock);
-    HASH_FIND_STR(channel->users, nickname, user_container);
-    HASH_DEL(channel->users, user_container);
-    free(user_container);
-    channel->nusers--;
     pthread_mutex_unlock(&channel->lock);
 
     return 0;

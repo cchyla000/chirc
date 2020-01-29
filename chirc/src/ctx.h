@@ -19,7 +19,6 @@ struct ctx_t
      *  either points to a user or the server they are on
      */
     struct chirc_user_t *users;
-    struct chirc_user_cont_t *network_users;
     struct chirc_channel_t *channels;
     /* All servers in network specification file: */
     // struct chirc_server_t *network_servers;
@@ -31,7 +30,6 @@ struct ctx_t
     int connected_clients;
     int num_operators;
     pthread_mutex_t users_lock;
-    pthread_mutex_t network_users_lock;
     pthread_mutex_t channels_lock;
     pthread_mutex_t servers_lock;
 };
