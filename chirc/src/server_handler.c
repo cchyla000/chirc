@@ -190,6 +190,16 @@ int handle_NICK_SERVER(struct ctx_t *ctx, struct chirc_message_t *msg,
 {
     forward_to_other_servers(ctx, msg, server);
     struct chirc_user_t *user = calloc(1, sizeof(struct chirc_user_t));
+    struct chirc_server_t *home_server;
+
+    pthread_mutex_lock(&ctx->servers_lock);
+    HASH_FIND_STR(ctx->servers, msg->prefix, home_server);
+    pthread_mutex_unlock(&ctx->servers_lock);
+    if (!home_server)
+    {
+        return 0;
+    }
+
     strcpy(user->nickname, msg->params[0]);
     strcpy(user->username, msg->params[2]);
     strcpy(user->hostname, msg->params[3]);
@@ -197,6 +207,8 @@ int handle_NICK_SERVER(struct ctx_t *ctx, struct chirc_message_t *msg,
     user->is_registered = true;
     user->is_on_server = false;
     user->channels = NULL;
+    user->server = home_server;
+
     pthread_mutex_lock(&ctx->users_lock);
     HASH_ADD_STR(ctx->users, nickname, user);
     pthread_mutex_unlock(&ctx->users_lock);

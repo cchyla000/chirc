@@ -76,7 +76,7 @@ static int send_nick_to_servers(struct ctx_t *ctx, struct chirc_user_t *user)
     pthread_mutex_lock(&ctx->servers_lock);
     for (server = ctx->servers; server != NULL; server = server->hh.next)
     {
-        if (server->is_registered)
+        if (server->is_registered && server != ctx->this_server)
         {
             send_message_to_server(&msg, server);
         }
@@ -87,7 +87,9 @@ static int send_nick_to_servers(struct ctx_t *ctx, struct chirc_user_t *user)
 /* Sends Replies 001 to 004 to specified user upon successful registration */
 static int send_welcome_messages(struct ctx_t *ctx, struct chirc_user_t *user)
 {
+
     send_nick_to_servers(ctx, user);
+
     char param_buffer[MAX_MSG_LEN + 1] = {0};
     struct chirc_message_t msg;
     int error;
@@ -231,6 +233,7 @@ static int send_welcome_messages(struct ctx_t *ctx, struct chirc_user_t *user)
     {
         return error;
     }
+
 
 
     return 0;
@@ -877,7 +880,15 @@ int handle_WHOIS_USER(struct ctx_t *ctx, struct chirc_message_t *msg,
         chirc_message_construct(&reply_msg, server->servername, RPL_WHOISSERVER);
         chirc_message_add_parameter(&reply_msg, user->nickname, false);
         chirc_message_add_parameter(&reply_msg, msg->params[0], false);
-        chirc_message_add_parameter(&reply_msg, server->servername, false);
+        if (found_user->is_on_server)
+        {
+            chirc_message_add_parameter(&reply_msg, server->servername, false);
+        }
+        else
+        {
+            chirc_message_add_parameter(&reply_msg, found_user->server->servername, false);
+        }
+
         chirc_message_add_parameter(&reply_msg, "server info", true);
         error = send_message(&reply_msg, user);
         if (error)
@@ -1448,7 +1459,7 @@ int handle_CONNECT_USER(struct ctx_t *ctx, struct chirc_message_t *msg,
             chirc_message_add_parameter(&reply_msg, "1", false);
             chirc_message_add_parameter(&reply_msg, "chirc server", true);
             send_message_to_server(&reply_msg, found_server);
-         
+
             ctx->num_clients += 1;
             wa = calloc(1, sizeof(struct worker_args));
             wa->socket = client_socket;

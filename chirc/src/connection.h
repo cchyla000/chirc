@@ -45,6 +45,7 @@ struct chirc_user_t {
     bool is_registered;
     pthread_mutex_t lock;
     UT_hash_handle hh;
+    struct chirc_server_t *server;  // The server the user is on. NULL if on this server
 };
 
 /* Struct to accommadate uthash's inability to have the same pointer in more
