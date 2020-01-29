@@ -35,7 +35,7 @@ static int send_message(struct chirc_message_t *msg, struct chirc_user_t *user)
     return 0;
 }
 
-static int send_message_to_server(struct chirc_message_t *msg, struct chirc_user_t *server)
+static int send_message_to_server(struct chirc_message_t *msg, struct chirc_server_t *server)
 {
     int nbytes;
     char to_send[MAX_MSG_LEN + 1] = {0};
@@ -438,6 +438,7 @@ int handle_NICK_USER(struct ctx_t *ctx, struct chirc_message_t *msg,
         {
             chilog(DEBUG, "About to add user to hash");
             user->is_registered = true;
+            user->is_on_server = true;
             pthread_mutex_lock(&ctx->users_lock);
             HASH_ADD_STR(ctx->users, nickname, user);
             pthread_mutex_unlock(&ctx->users_lock);
@@ -476,6 +477,7 @@ int handle_USER_USER(struct ctx_t *ctx, struct chirc_message_t *msg,
         if (*user->nickname)  // Registration complete
         {
             user->is_registered = true;
+            user->is_on_server = true;
             pthread_mutex_lock(&ctx->users_lock);
             HASH_ADD_STR(ctx->users, nickname, user);
             pthread_mutex_unlock(&ctx->users_lock);
@@ -907,8 +909,11 @@ int handle_JOIN_USER(struct ctx_t *ctx, struct chirc_message_t *msg,
         return error;
     }
     struct chirc_channel_t *channel;
-    struct chirc_message_t reply_msg;
-    char buffer[MAX_MSG_LEN + 1] = {0};
+    struct chirc_message_t local_msg; // message that gets sent to users on server
+    chirc_message_clear(&local_msg);
+    char local_buffer[MAX_MSG_LEN + 1] = {0};
+    struct chirc_message_t outgoing_msg; // message that gets sent to connected servers
+    chirc_message_clear(&outgoing_msg);
     char channel_name[MAX_CHANNEL_NAME_LEN + 1];
     strcpy(channel_name, msg->params[0]);
     pthread_mutex_lock(&ctx->channels_lock);
@@ -917,6 +922,7 @@ int handle_JOIN_USER(struct ctx_t *ctx, struct chirc_message_t *msg,
 
     struct chirc_user_t *user_in_channel;
     struct chirc_user_cont_t *user_container;
+    struct chirc_server_t *server_other;
     if (channel)
     {
         /* channel exists, check if user in channel
@@ -939,31 +945,39 @@ int handle_JOIN_USER(struct ctx_t *ctx, struct chirc_message_t *msg,
         pthread_mutex_unlock(&channel->lock);
     }
 
-    /* Send JOIN message to everyone on channel */
-    sprintf(buffer, "%s!%s@%s", user->nickname, user->username, user->hostname);
-    chirc_message_construct(&reply_msg, buffer, msg->cmd);
+    /* Send JOIN message to everyone on channel and other servers */
+    sprintf(local_buffer, "%s!%s@%s", user->nickname, user->username, user->hostname);
+    chirc_message_construct(&local_msg, local_buffer, msg->cmd);
+    chirc_message_construct(&outgoing_msg, user->nickname, msg->cmd);
     for (int i = 0; i < msg->nparams; i++)
     {
-        chirc_message_add_parameter(&reply_msg, msg->params[i], false);
+        chirc_message_add_parameter(&local_msg, msg->params[i], false);
+        chirc_message_add_parameter(&outgoing_msg, msg->params[i], false);
     }
     pthread_mutex_lock(&channel->lock);
     for (user_container=channel->users; user_container != NULL;
                                    user_container=user_container->hh.next)
     {
-        pthread_mutex_unlock(&channel->lock);
-        user_in_channel = find_user_in_channel(ctx, channel,
-                                                    user_container->nickname);
-        pthread_mutex_lock(&channel->lock);
-        send_message(&reply_msg, user_in_channel);
+        if (user_container->user->is_on_server)
+        {
+            send_message(&local_msg, user_container->user);
+        }
+    }
+    for (server_other = ctx->servers; server_other != NULL; server_other = server_other->hh.next)
+    {
+        if (server_other->is_registered)
+        {
+            send_message_to_server(&outgoing_msg, server_other);
+        }
     }
     pthread_mutex_unlock(&channel->lock);
-    chirc_message_clear(&reply_msg);
+    chirc_message_clear(&local_msg);
 
     /* Send list of member users to user that is joining */
-    chirc_message_construct(&reply_msg, server->servername, RPL_NAMREPLY);
-    chirc_message_add_parameter(&reply_msg, user->nickname, false);
-    chirc_message_add_parameter(&reply_msg, "=", false);
-    chirc_message_add_parameter(&reply_msg, channel->channel_name, false);
+    chirc_message_construct(&local_msg, server->servername, RPL_NAMREPLY);
+    chirc_message_add_parameter(&local_msg, user->nickname, false);
+    chirc_message_add_parameter(&local_msg, "=", false);
+    chirc_message_add_parameter(&local_msg, channel->channel_name, false);
     pthread_mutex_lock(&channel->lock);
     char nicks_buffer[MAX_MSG_LEN + 1] = {0};
     for (user_container = channel->users; user_container != NULL;
@@ -971,26 +985,26 @@ int handle_JOIN_USER(struct ctx_t *ctx, struct chirc_message_t *msg,
     {
         sprintf(nicks_buffer, "%s", user_container->nickname);
     }
-    chirc_message_add_parameter(&reply_msg, nicks_buffer, true);
+    chirc_message_add_parameter(&local_msg, nicks_buffer, true);
     pthread_mutex_unlock(&channel->lock);
-    error = send_message(&reply_msg, user);
+    error = send_message(&local_msg, user);
     if (error)
     {
         return -1;
     }
-    chirc_message_clear(&reply_msg);
-    chirc_message_construct(&reply_msg, server->servername, RPL_ENDOFNAMES);
-    chirc_message_add_parameter(&reply_msg, user->nickname, false);
+    chirc_message_clear(&local_msg);
+    chirc_message_construct(&local_msg, server->servername, RPL_ENDOFNAMES);
+    chirc_message_add_parameter(&local_msg, user->nickname, false);
     pthread_mutex_lock(&channel->lock);
-    chirc_message_add_parameter(&reply_msg, channel->channel_name, false);
+    chirc_message_add_parameter(&local_msg, channel->channel_name, false);
     pthread_mutex_unlock(&channel->lock);
-    chirc_message_add_parameter(&reply_msg, "End of NAMES list", true);
-    error = send_message(&reply_msg, user);
+    chirc_message_add_parameter(&local_msg, "End of NAMES list", true);
+    error = send_message(&local_msg, user);
     if (error)
     {
         return -1;
     }
-    chirc_message_clear(&reply_msg);
+    chirc_message_clear(&local_msg);
 
     return 0;
 }
