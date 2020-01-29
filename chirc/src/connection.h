@@ -21,6 +21,7 @@ struct chirc_server_t {
     char servername[MAX_SERVER_LEN + 1];
     char password[MAX_PASSWORD_LEN + 1];
     char hostname[MAX_HOST_LEN + 1];
+    char oper_password[MAX_PASSWORD_LEN + 1];
     char port[MAX_PORT_LEN + 1];
     int socket;
     bool is_registered;

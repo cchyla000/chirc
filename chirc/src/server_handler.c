@@ -180,7 +180,7 @@ static int forward_to_other_servers(struct ctx_t *ctx, struct chirc_message_t *m
     {
         if (other_server->is_registered && other_server != server)
         {
-            send_message_to_server(&msg, other_server);
+            send_message_to_server(msg, other_server);
         }
     }
 }

@@ -1323,7 +1323,7 @@ int handle_OPER_USER(struct ctx_t *ctx, struct chirc_message_t *msg,
     chilog(DEBUG, ctx->this_server->password);
     chilog(DEBUG, "Got: ");
     chilog(DEBUG, msg->params[1]);
-    if (strcmp(ctx->this_server->password, msg->params[1]))  // Password does not match
+    if (strcmp(ctx->this_server->oper_password, msg->params[1]))  // Password does not match
     {
         chirc_message_construct(&reply_msg, server->servername, ERR_PASSWDMISMATCH);
         chirc_message_add_parameter(&reply_msg, user->nickname, false);

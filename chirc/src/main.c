@@ -210,6 +210,7 @@ int main(int argc, char *argv[])
         if (server)
         {
             server->is_registered = true;
+            strncpy(server->oper_password, passwd, MAX_PASSWORD_LEN);
             ctx->this_server = server;
             HASH_DEL(ctx->servers, server);
         }
@@ -228,7 +229,7 @@ int main(int argc, char *argv[])
     {
         server = calloc(1, sizeof (struct chirc_server_t));
         pthread_mutex_init(&server->lock, NULL);
-        strncpy(server->password, passwd, MAX_PASSWORD_LEN);
+        strncpy(server->oper_password, passwd, MAX_PASSWORD_LEN);
 //        strncpy(server->servername, server_name, MAX_SERVER_LEN);
         strncpy(server->port, port, MAX_PORT_LEN);
         server->is_registered = true;
