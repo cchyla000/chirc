@@ -91,17 +91,6 @@ static int server_complete_registration(struct ctx_t *ctx,
     chilog(DEBUG, this_server->password);
     chilog(DEBUG, "Got: ");
     chilog(DEBUG, server->password);
-    if (strcmp(this_server->password, server->password))
-    {
-        chilog(DEBUG, "incorrect password");
-        /* Incorrect password */
-        server->is_registered = true;
-        chirc_message_construct(&reply_msg, this_server->servername,
-                                "ERROR");
-        chirc_message_add_parameter(&reply_msg, "Bad password", true);
-        error = send_message_to_server(&reply_msg, server);
-        return error;
-    }
 
     HASH_FIND_STR(ctx->servers, server->servername, network_server);
 
@@ -124,6 +113,17 @@ static int server_complete_registration(struct ctx_t *ctx,
       sprintf(param_buffer, "ID \"%s\" already registered", server->servername);
       chirc_message_add_parameter(&reply_msg, param_buffer, true);
       error = send_message_to_server(&reply_msg, server);
+    }
+    else if (strcmp(this_server->password, server->password))
+    {
+        chilog(DEBUG, "incorrect password");
+        /* Incorrect password */
+        server->is_registered = true;
+        chirc_message_construct(&reply_msg, this_server->servername,
+                                "ERROR");
+        chirc_message_add_parameter(&reply_msg, "Bad password", true);
+        error = send_message_to_server(&reply_msg, server);
+        return error;
     }
     else
     {
@@ -150,6 +150,7 @@ static int server_complete_registration(struct ctx_t *ctx,
 
         HASH_DEL(ctx->servers, network_server);
         HASH_ADD_STR(ctx->servers, servername, server);
+        free(network_server);
     }
     return error;
 }
@@ -255,8 +256,7 @@ int handle_PASS_SERVER(struct ctx_t *ctx, struct chirc_message_t *msg,
         chirc_message_construct(&reply_msg, this_server->servername,
                                 ERR_ALREADYREGISTERED);
         chirc_message_add_parameter(&reply_msg, server->servername, false);
-        chirc_message_add_parameter(&reply_msg, "Unauthorized command "
-                                    "(already registered)", true);
+        chirc_message_add_parameter(&reply_msg, "Connection already registered", true);
         error = send_message_to_server(&reply_msg, server);
     }
     else
@@ -285,8 +285,7 @@ int handle_SERVER_SERVER(struct ctx_t *ctx, struct chirc_message_t *msg,
         chirc_message_construct(&reply_msg, this_server->servername,
                                 ERR_ALREADYREGISTERED);
         chirc_message_add_parameter(&reply_msg, server->servername, false);
-        chirc_message_add_parameter(&reply_msg, "Unauthorized command "
-                                  "(already registered)", true);
+        chirc_message_add_parameter(&reply_msg, "Connection already registered", true);
         error = send_message_to_server(&reply_msg, server);
     }
     else if (msg->params[0] != NULL)
