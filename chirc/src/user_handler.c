@@ -402,7 +402,9 @@ int handle_NICK_USER(struct ctx_t *ctx, struct chirc_message_t *msg,
     }
 
     strncpy(nick, msg->params[0], MAX_NICK_LEN);
+    pthread_mutex_lock(&ctx->users_lock);
     HASH_FIND_STR(ctx->users, nick, found_user);
+    pthread_mutex_unlock(&ctx->users_lock);
 
     if (found_user)  // Nickname already in use
     {
@@ -568,9 +570,14 @@ int handle_QUIT_USER(struct ctx_t *ctx, struct chirc_message_t *msg,
         pthread_mutex_unlock(&channel->lock);
     }
     send_message(&reply_msg_to_user, user);
+
+    pthread_mutex_lock(&ctx->users_lock);
     HASH_DEL(ctx->users, user);
+    pthread_mutex_unlock(&ctx->users_lock);
+
     ctx->num_direct_users--;
     ctx->num_direct_connections--;
+
     return 0;  // return error code so user is destroyed and exits
 }
 
@@ -1421,7 +1428,9 @@ int handle_CONNECT_USER(struct ctx_t *ctx, struct chirc_message_t *msg,
         error = send_message(&reply_msg, user);
     }
 
+    pthread_mutex_lock(&ctx->servers_lock);
     HASH_FIND_STR(ctx->servers, msg->params[0], found_server);
+    pthread_mutex_unlock(&ctx->servers_lock);
 
     if (!found_server)
     {

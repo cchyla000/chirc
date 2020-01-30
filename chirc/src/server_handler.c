@@ -110,7 +110,9 @@ static int server_complete_registration(struct ctx_t *ctx,
     chilog(DEBUG, "Got: ");
     chilog(DEBUG, server->password);
 
+    pthread_mutex_lock(&ctx->servers_lock);
     HASH_FIND_STR(ctx->servers, server->servername, network_server);
+    pthread_mutex_unlock(&ctx->servers_lock);
 
     if (!network_server)
     {
@@ -165,9 +167,11 @@ static int server_complete_registration(struct ctx_t *ctx,
         server->is_registered = true;
         strncpy(server->password, network_server->password, MAX_PASSWORD_LEN);
         strncpy(server->port, network_server->port, MAX_PORT_LEN);
-
+       
+        pthread_mutex_lock(&ctx->servers_lock);
         HASH_DEL(ctx->servers, network_server);
         HASH_ADD_STR(ctx->servers, servername, server);
+        pthread_mutex_unlock(&ctx->servers_lock);
         free(network_server);
     }
     return error;
@@ -175,6 +179,7 @@ static int server_complete_registration(struct ctx_t *ctx,
 
 static int forward_to_other_servers(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_server_t *server)
 {
+    pthread_mutex_lock(&ctx->servers_lock);
     for (struct chirc_server_t *other_server = ctx->servers; other_server != NULL;
                                           other_server = other_server->hh.next)
     {
@@ -183,6 +188,7 @@ static int forward_to_other_servers(struct ctx_t *ctx, struct chirc_message_t *m
             send_message_to_server(msg, other_server);
         }
     }
+    pthread_mutex_unlock(&ctx->servers_lock);
 }
 
 int handle_NICK_SERVER(struct ctx_t *ctx, struct chirc_message_t *msg,

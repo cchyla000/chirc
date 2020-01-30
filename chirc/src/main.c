@@ -188,6 +188,8 @@ int main(int argc, char *argv[])
                         break;
                     case 3:
                         strncpy(server->password, token, MAX_PASSWORD_LEN);
+                        /* Don't need a lock here because we are initializing
+                           the server at startup; no race condition can occur */
                         HASH_ADD_STR(ctx->servers, servername, server);
                         break;
                     default:
@@ -230,7 +232,6 @@ int main(int argc, char *argv[])
         server = calloc(1, sizeof (struct chirc_server_t));
         pthread_mutex_init(&server->lock, NULL);
         strncpy(server->oper_password, passwd, MAX_PASSWORD_LEN);
-//        strncpy(server->servername, server_name, MAX_SERVER_LEN);
         strncpy(server->port, port, MAX_PORT_LEN);
         server->is_registered = true;
         ctx->this_server = server;
@@ -315,7 +316,6 @@ int main(int argc, char *argv[])
             perror("Could not accept() connection");
             continue;
         }
-        chilog(DEBUG, "Spawning new connection thread for server %s", ctx->this_server->servername);
         wa = calloc(1, sizeof(struct worker_args));
         wa->socket = client_socket;
         wa->ctx = ctx;
