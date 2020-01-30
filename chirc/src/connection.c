@@ -337,57 +337,47 @@ void *service_connection(void *args)
     }
 }
 
+/*
+ * Appropriately decrements the context variables that store the
+ * number of connections/users/servers and removes from appropriate
+ * hash table
+ */
 void destroy_connection(struct chirc_connection_t *connection, struct ctx_t *ctx)
 {
     struct chirc_channel_t *channel;
-    struct chirc_channel_cont_t *channel_container;
     struct chirc_user_t *user;
     struct chirc_server_t *server;
-
+    chilog(INFO, "In destroy connection");
     /* Remove user from the ctx hash of users */
-    if (connection->type == USER)
+    if (connection->type == USER && connection->user != NULL)
     {
         ctx->num_direct_users--;
         user = connection->user;
-        pthread_mutex_lock(&user->lock);
         pthread_mutex_lock(&ctx->users_lock);
-
-        if (user->is_irc_operator)
-        {
-            ctx->num_operators--;
-        }
-
         if (user->is_registered)
         {
             HASH_DEL(ctx->users, user);
         }
         pthread_mutex_unlock(&ctx->users_lock);
 
-        /* Remove user from all of the channels it is in */
-
-        for (channel_container=user->channels; channel_container != NULL;
-                                channel_container = channel_container->hh.next)
+//        pthread_mutex_lock(&user->lock);
+        if (user->is_irc_operator)
         {
-            channel = find_channel_in_user(ctx, user, channel_container->channel_name);
-            remove_user_from_channel(channel, user);
-            if (channel->nusers == 0)
-            {
-                destroy_channel(ctx, channel);
-            }
+            ctx->num_operators--;
         }
-        pthread_mutex_unlock(&user->lock);
-        pthread_mutex_destroy(&user->lock);
-        free(user);
+//        pthread_mutex_unlock(&user->lock);
+
     }
-    else if (connection->type == SERVER)
+    else if (connection->type == SERVER && connection->server != NULL)
     {
         server = connection->server;
+        chilog(INFO, "destroy: servername is: %s", server->servername);
         ctx->num_direct_servers--;
-        free(server);
+        pthread_mutex_lock(&ctx->servers_lock);
+        HASH_DEL(ctx->servers, server);
+        pthread_mutex_unlock(&ctx->servers_lock);
     }
 
     ctx->num_direct_connections--;
-
-    free(connection);
 
 }

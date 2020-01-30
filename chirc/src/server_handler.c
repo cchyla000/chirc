@@ -142,6 +142,7 @@ int handle_NICK_SERVER(struct ctx_t *ctx, struct chirc_message_t *msg,
     forward_to_other_servers(ctx, msg, server);
     struct chirc_user_t *user = calloc(1, sizeof(struct chirc_user_t));
     struct chirc_server_t *home_server;
+    pthread_mutex_init(&user->lock, NULL);
 
     pthread_mutex_lock(&ctx->servers_lock);
     HASH_FIND_STR(ctx->servers, msg->prefix, home_server);

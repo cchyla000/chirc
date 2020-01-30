@@ -542,8 +542,8 @@ int handle_QUIT_USER(struct ctx_t *ctx, struct chirc_message_t *msg,
 
     ctx->num_direct_users--;
     ctx->num_direct_connections--;
-
-    return 0;  // return error code so user is destroyed and exits
+    free(user);
+    pthread_exit(NULL);
 }
 
 int handle_PRIVMSG_USER(struct ctx_t *ctx, struct chirc_message_t *msg,
@@ -949,6 +949,7 @@ int handle_JOIN_USER(struct ctx_t *ctx, struct chirc_message_t *msg,
             send_message(&local_msg, user_container->user);
         }
     }
+    pthread_mutex_lock(&ctx->servers_lock);
     for (server_other = ctx->servers; server_other != NULL; server_other = server_other->hh.next)
     {
         if (server_other->is_registered)
@@ -956,6 +957,7 @@ int handle_JOIN_USER(struct ctx_t *ctx, struct chirc_message_t *msg,
             send_message_to_server(&outgoing_msg, server_other);
         }
     }
+    pthread_mutex_unlock(&ctx->servers_lock);
     pthread_mutex_unlock(&channel->lock);
     chirc_message_clear(&local_msg);
 
