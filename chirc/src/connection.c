@@ -55,7 +55,6 @@ struct user_handler_entry user_handlers[] = {
                                      USER_HANDLER_ENTRY(USER),
                                      USER_HANDLER_ENTRY(QUIT),
                                      USER_HANDLER_ENTRY(PRIVMSG),
-                                     USER_HANDLER_ENTRY(NOTICE),
                                      USER_HANDLER_ENTRY(PING),
                                      USER_HANDLER_ENTRY(PONG),
                                      USER_HANDLER_ENTRY(LUSERS),
@@ -64,31 +63,55 @@ struct user_handler_entry user_handlers[] = {
                                      USER_HANDLER_ENTRY(MODE),
                                      USER_HANDLER_ENTRY(LIST),
                                      USER_HANDLER_ENTRY(OPER),
-                                     USER_HANDLER_ENTRY(PART),
                                      USER_HANDLER_ENTRY(CONNECT)
                                   };
 
 struct server_handler_entry server_handlers[] = {
                                      SERVER_HANDLER_ENTRY(NICK),
-                                     SERVER_HANDLER_ENTRY(USER),
-                                     SERVER_HANDLER_ENTRY(QUIT),
                                      SERVER_HANDLER_ENTRY(PRIVMSG),
-                                     SERVER_HANDLER_ENTRY(NOTICE),
-                                     SERVER_HANDLER_ENTRY(PING),
-                                     SERVER_HANDLER_ENTRY(PONG),
-                                     SERVER_HANDLER_ENTRY(LUSERS),
-                                     SERVER_HANDLER_ENTRY(WHOIS),
                                      SERVER_HANDLER_ENTRY(JOIN),
-                                     SERVER_HANDLER_ENTRY(MODE),
-                                     SERVER_HANDLER_ENTRY(LIST),
-                                     SERVER_HANDLER_ENTRY(OPER),
-                                     SERVER_HANDLER_ENTRY(PART),
                                      SERVER_HANDLER_ENTRY(PASS),
                                      SERVER_HANDLER_ENTRY(SERVER)
                                   };
 
 int num_user_handlers = sizeof(user_handlers) / sizeof(struct user_handler_entry);
 int num_server_handlers = sizeof(server_handlers) / sizeof(struct server_handler_entry);
+
+int send_message(struct chirc_message_t *msg, struct chirc_user_t *user)
+{
+    int nbytes;
+    char to_send[MAX_MSG_LEN + 1] = {0};
+    chirc_message_to_string(msg, to_send);
+
+    pthread_mutex_lock(&user->lock);
+    nbytes = send(user->socket, to_send, strlen(to_send), 0);
+    pthread_mutex_unlock(&user->lock);
+
+    if (nbytes == -1)
+    {
+        return -1;
+    }
+
+    return 0;
+}
+
+int send_message_to_server(struct chirc_message_t *msg, struct chirc_server_t *server)
+{
+    int nbytes;
+    char to_send[MAX_MSG_LEN + 1] = {0};
+    chirc_message_to_string(msg, to_send);
+
+    pthread_mutex_lock(&server->lock);
+    nbytes = send(server->socket, to_send, strlen(to_send), 0);
+    pthread_mutex_unlock(&server->lock);
+
+    if (nbytes == -1)
+    {
+        return -1;
+    }
+
+    return 0;
+}
 
 /*
  * Set struct user hostname field using getnameinfo(); if

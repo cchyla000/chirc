@@ -22,44 +22,8 @@
 
 #define IRC_VERSION "2.10"
 
-/* Sends messages and does error checking; terminates
- * thread and destroys user if error in sending detected */
-static int send_message(struct chirc_message_t *msg, struct chirc_user_t *user)
-{
-    int nbytes;
-    char to_send[MAX_MSG_LEN + 1] = {0};
-    chirc_message_to_string(msg, to_send);
-
-    pthread_mutex_lock(&user->lock);
-    nbytes = send(user->socket, to_send, strlen(to_send), 0);
-    pthread_mutex_unlock(&user->lock);
-
-    if (nbytes == -1)
-    {
-        return -1;
-    }
-
-    return 0;
-}
-
-static int send_message_to_server(struct chirc_message_t *msg, struct chirc_server_t *server)
-{
-    int nbytes;
-    char to_send[MAX_MSG_LEN + 1] = {0};
-    chirc_message_to_string(msg, to_send);
-
-    pthread_mutex_lock(&server->lock);
-    nbytes = send(server->socket, to_send, strlen(to_send), 0);
-    pthread_mutex_unlock(&server->lock);
-
-    if (nbytes == -1)
-    {
-        return -1;
-    }
-
-    return 0;
-}
-
+/* Send a NICK command to all connected servers with all of a given user's
+ * information. Sent upon completing registration. */
 static int send_nick_to_servers(struct ctx_t *ctx, struct chirc_user_t *user)
 {
     struct chirc_message_t msg;
@@ -311,7 +275,8 @@ static int handle_not_enough_parameters(struct ctx_t *ctx,
 }
 
 /* Forwards message with prefix to the given recipient user or all users on
- * a recipient channel. Used by PRIVMSG and NOTICE. */
+ * a recipient channel. Used to be used by PRIVMSG and NOTICE to reduce
+ * repeated code, but NOTICE no longer exists */
 static int forward_message_to_user_or_channel(struct ctx_t *ctx,
   struct chirc_message_t *msg, struct chirc_user_t *user,
   struct chirc_user_t *recipient, struct chirc_channel_t *recipient_channel)
@@ -687,38 +652,6 @@ int handle_PRIVMSG_USER(struct ctx_t *ctx, struct chirc_message_t *msg,
     return 0;
 }
 
-int handle_NOTICE_USER(struct ctx_t *ctx, struct chirc_message_t *msg,
-                                                      struct chirc_user_t *user)
-{
-    /* The same as PRIVMSG, but with no replies sent to the sender */
-    int error;
-    struct chirc_server_t *server = ctx->this_server;
-    if ((error = handle_not_registered(ctx, user)))
-    {
-        return error;
-    }
-    if (msg->nparams == 0 || msg->nparams == 1)
-    {
-        return 1;
-    }
-    struct chirc_user_t *recipient;
-    struct chirc_channel_t *recipient_channel;
-    char recipient_nick[MAX_NICK_LEN + 1];
-    char recipient_ch_name[MAX_CHANNEL_NAME_LEN + 1];
-    strcpy(recipient_nick, msg->params[0]);
-    strcpy(recipient_ch_name, msg->params[0]);
-    pthread_mutex_lock(&ctx->users_lock);
-    HASH_FIND_STR(ctx->users, recipient_nick, recipient);
-    pthread_mutex_unlock(&ctx->users_lock);
-    recipient_channel = find_channel_in_user(ctx, user, recipient_ch_name);
-    if (recipient || recipient_channel)
-    {
-        forward_message_to_user_or_channel(ctx, msg, user, recipient,
-                                                            recipient_channel);
-    }
-    return 0;
-}
-
 int handle_PING_USER(struct ctx_t *ctx, struct chirc_message_t *msg,
                                                       struct chirc_user_t *user)
 {
@@ -1056,100 +989,6 @@ int handle_JOIN_USER(struct ctx_t *ctx, struct chirc_message_t *msg,
     if (error)
     {
         return -1;
-    }
-
-    return 0;
-}
-
-int handle_PART_USER(struct ctx_t *ctx, struct chirc_message_t *msg,
-                                                      struct chirc_user_t *user)
-{
-    int error;
-    struct chirc_server_t *server = ctx->this_server;
-    if ((error = (handle_not_registered(ctx, user))) ||
-                  (error = (handle_not_enough_parameters(ctx, msg, user, 1))))
-    {
-        return error;
-    }
-    /* Check if channel exists and that the user is a member of it */
-    struct chirc_message_t reply_msg;
-    chirc_message_clear(&reply_msg);
-    struct chirc_channel_t *recipient_channel;
-    struct chirc_channel_t *channel_exists;
-    char buffer[MAX_MSG_LEN + 1] = {0};
-    char recipient_ch_name[MAX_CHANNEL_NAME_LEN + 1];
-    strcpy(recipient_ch_name, msg->params[0]);
-    recipient_channel = find_channel_in_user(ctx, user, recipient_ch_name);
-    pthread_mutex_lock(&ctx->channels_lock);
-    HASH_FIND_STR(ctx->channels, recipient_ch_name, channel_exists);
-    pthread_mutex_unlock(&ctx->channels_lock);
-    if (recipient_channel)
-    {
-        /* Channel exists and user is a member, so forward message to channel */
-        sprintf(buffer, "%s!%s@%s", user->nickname, user->username, user->hostname);
-        chirc_message_construct(&reply_msg, buffer, msg->cmd);
-
-        for (int i = 0; i < msg->nparams - 1; i++)
-        {
-            chirc_message_add_parameter(&reply_msg, msg->params[i], false);
-        }
-        chirc_message_add_parameter(&reply_msg, msg->params[msg->nparams - 1], true);
-        reply_msg.longlast = msg->longlast;
-
-        struct chirc_user_t *user_in_channel;
-        struct chirc_user_cont_t *user_container;
-        pthread_mutex_lock(&recipient_channel->lock);
-        for (user_container=recipient_channel->users; user_container != NULL;
-                                       user_container=user_container->hh.next)
-        {
-            pthread_mutex_unlock(&recipient_channel->lock);
-            user_in_channel = find_user_in_channel(ctx, recipient_channel,
-                                                  user_container->nickname);
-            pthread_mutex_lock(&recipient_channel->lock);
-            send_message(&reply_msg, user_in_channel);
-        }
-        pthread_mutex_unlock(&recipient_channel->lock);
-
-        remove_user_from_channel(recipient_channel, user);
-        if (recipient_channel->nusers == 0)
-        {
-            /* If user is the last user in the channel, destroy the channel */
-            destroy_channel(ctx, recipient_channel);
-        }
-    }
-    else if (channel_exists)
-    {
-        /* Channel exists, but user is not a member */
-        chirc_message_construct(&reply_msg, server->servername, ERR_NOTONCHANNEL);
-        chirc_message_add_parameter(&reply_msg, user->nickname, false);
-        sprintf(buffer, "%s :You're not on that channel", recipient_ch_name);
-        chirc_message_add_parameter(&reply_msg, buffer, false);
-        send_message(&reply_msg, user);
-        if (error)
-        {
-            return -1;
-        }
-        else
-        {
-            return 1;
-        }
-    }
-    else
-    {
-        /* Channel does not exist */
-        chirc_message_construct(&reply_msg, server->servername, ERR_NOSUCHCHANNEL);
-        chirc_message_add_parameter(&reply_msg, user->nickname, false);
-        sprintf(buffer, "%s :No such channel", recipient_ch_name);
-        chirc_message_add_parameter(&reply_msg, buffer, false);
-        error = send_message(&reply_msg, user);
-        if (error)
-        {
-            return -1;
-        }
-        else
-        {
-            return 1;
-        }
     }
 
     return 0;

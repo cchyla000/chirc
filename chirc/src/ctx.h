@@ -13,6 +13,7 @@
 #define DATE_LEN 20
 #define MAX_HOST_LEN 63
 
+/* All of the information that all threads of the server need to be aware of */
 struct ctx_t
 {
     /*  Hash of user containers that say which server the user is on and

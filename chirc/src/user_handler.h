@@ -5,8 +5,8 @@
 #include "connection.h"
 #include "ctx.h"
 
-/* These functions handle incoming messages of their respective commands,
- * sending messages to other users and replying as specified */
+/* These functions handle incoming messages of their respective commands
+ * coming from user connections. They reply and send messages as needed */
 int handle_NICK_USER(struct ctx_t *ctx, struct chirc_message_t *msg,
                                          struct chirc_user_t *user);
 int handle_USER_USER(struct ctx_t *ctx, struct chirc_message_t *msg,
@@ -14,8 +14,6 @@ int handle_USER_USER(struct ctx_t *ctx, struct chirc_message_t *msg,
 int handle_QUIT_USER(struct ctx_t *ctx, struct chirc_message_t *msg,
                                          struct chirc_user_t *user);
 int handle_PRIVMSG_USER(struct ctx_t *ctx, struct chirc_message_t *msg,
-                                         struct chirc_user_t *user);
-int handle_NOTICE_USER(struct ctx_t *ctx, struct chirc_message_t *msg,
                                          struct chirc_user_t *user);
 int handle_PING_USER(struct ctx_t *ctx, struct chirc_message_t *msg,
                                          struct chirc_user_t *user);
@@ -32,8 +30,6 @@ int handle_MODE_USER(struct ctx_t *ctx, struct chirc_message_t *msg,
 int handle_LIST_USER(struct ctx_t *ctx, struct chirc_message_t *msg,
                                          struct chirc_user_t *user);
 int handle_OPER_USER(struct ctx_t *ctx, struct chirc_message_t *msg,
-                                         struct chirc_user_t *user);
-int handle_PART_USER(struct ctx_t *ctx, struct chirc_message_t *msg,
                                          struct chirc_user_t *user);
 int handle_CONNECT_USER(struct ctx_t *ctx, struct chirc_message_t *msg,
                                          struct chirc_user_t *user);
