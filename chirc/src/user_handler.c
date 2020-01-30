@@ -425,7 +425,6 @@ int handle_NICK_USER(struct ctx_t *ctx, struct chirc_message_t *msg,
 
         if (*user->username)  // Registration complete
         {
-            chilog(DEBUG, "About to add user to hash");
             user->is_registered = true;
             user->is_on_server = true;
             pthread_mutex_lock(&ctx->users_lock);
@@ -542,6 +541,8 @@ int handle_QUIT_USER(struct ctx_t *ctx, struct chirc_message_t *msg,
 
     ctx->num_direct_users--;
     ctx->num_direct_connections--;
+
+    pthread_mutex_destroy(&user->lock);
     free(user);
     pthread_exit(NULL);
 }
@@ -1205,10 +1206,6 @@ int handle_OPER_USER(struct ctx_t *ctx, struct chirc_message_t *msg,
     struct chirc_message_t reply_msg;
     chirc_message_clear(&reply_msg);
 
-    chilog(DEBUG, "Expected: ");
-    chilog(DEBUG, ctx->this_server->password);
-    chilog(DEBUG, "Got: ");
-    chilog(DEBUG, msg->params[1]);
     if (strcmp(ctx->this_server->oper_password, msg->params[1]))  // Password does not match
     {
         chirc_message_construct(&reply_msg, server->servername, ERR_PASSWDMISMATCH);

@@ -189,7 +189,6 @@ void *service_connection(void *args)
     }
     else if (connection->type == SERVER)
     {
-        chilog(DEBUG, "Provided with existing connection in service_connection");
         server = connection->server;
         ctx->num_direct_servers++;
     }
@@ -219,8 +218,6 @@ void *service_connection(void *args)
         while (strstr(tmp, "\r\n") != NULL)
         {
             memset(&msg, 0, sizeof(msg));
-            chilog(DEBUG, "Message received on server %s: ", ctx->this_server->servername);
-            chilog(DEBUG, tmp);
             nbytes = chirc_message_from_string(&msg, tmp);
 
             /* Point to beginning of next msg if present. */
@@ -248,23 +245,10 @@ void *service_connection(void *args)
                     pthread_mutex_init(&server->lock, NULL);
                     ctx->num_direct_servers++;
                 }
-                else
-                {
-                  /*
-                    chirc_message_construct(&reply_msg, server->servername,
-                                            ERR_NOTREGISTERED);
-                    chirc_message_add_parameter(&reply_msg, NULL, false);
-                    chirc_message_add_parameter(&reply_msg,
-                                        "You have not registered", true);
-                    chirc_message_to_string(&reply_msg, tosend);
-                    send(client_socket, tosend, strlen(tosend), 0);
-                    */
-                }
             }
 
             if (connection->type == USER)
             {
-                chilog(DEBUG, "In USER connection handler for server %s", ctx->this_server->servername);
                 for(i=0; i<num_user_handlers; i++)
                 {
                     if (!strcmp(user_handlers[i].name, cmd))
@@ -296,7 +280,6 @@ void *service_connection(void *args)
             }
             else if (connection->type == SERVER)
             {
-                chilog(DEBUG, "In SERVER connection handler for server %s", ctx->this_server->servername);
                 for(i=0; i<num_server_handlers; i++)
                 {
                     if (!strcmp(server_handlers[i].name, cmd))
@@ -312,11 +295,6 @@ void *service_connection(void *args)
                         break;
                     }
                 }
-            }
-            else
-            {
-                chilog(DEBUG, "UNKNOWN type for server %s, doing nothing", ctx->this_server->servername);
-
             }
         }
         /* Clear Buffer */
@@ -347,7 +325,6 @@ void destroy_connection(struct chirc_connection_t *connection, struct ctx_t *ctx
     struct chirc_channel_t *channel;
     struct chirc_user_t *user;
     struct chirc_server_t *server;
-    chilog(INFO, "In destroy connection");
     /* Remove user from the ctx hash of users */
     if (connection->type == USER && connection->user != NULL)
     {
@@ -360,24 +337,24 @@ void destroy_connection(struct chirc_connection_t *connection, struct ctx_t *ctx
         }
         pthread_mutex_unlock(&ctx->users_lock);
 
-//        pthread_mutex_lock(&user->lock);
         if (user->is_irc_operator)
         {
             ctx->num_operators--;
         }
-//        pthread_mutex_unlock(&user->lock);
-
+        pthread_mutex_destroy(&user->lock);
+        free(user);
     }
     else if (connection->type == SERVER && connection->server != NULL)
     {
         server = connection->server;
-        chilog(INFO, "destroy: servername is: %s", server->servername);
         ctx->num_direct_servers--;
         pthread_mutex_lock(&ctx->servers_lock);
         HASH_DEL(ctx->servers, server);
         pthread_mutex_unlock(&ctx->servers_lock);
+        pthread_mutex_destroy(&server->lock);
+        free(server);
     }
 
     ctx->num_direct_connections--;
-
+    free(connection);
 }

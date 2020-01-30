@@ -40,18 +40,12 @@ static int handle_not_enough_parameters(struct ctx_t *ctx,
 static int server_complete_registration(struct ctx_t *ctx,
              struct chirc_message_t *msg, struct chirc_server_t *server)
 {
-    chilog(DEBUG, "server completing registration");
     char param_buffer[MAX_MSG_LEN + 1] = {0};
     struct chirc_server_t *network_server = NULL;
     struct chirc_server_t *this_server = ctx->this_server;
     int error;
     struct chirc_message_t reply_msg;
     chirc_message_clear(&reply_msg);
-
-    chilog(DEBUG, "Expected:");
-    chilog(DEBUG, this_server->password);
-    chilog(DEBUG, "Got: ");
-    chilog(DEBUG, server->password);
 
     pthread_mutex_lock(&ctx->servers_lock);
     HASH_FIND_STR(ctx->servers, server->servername, network_server);
@@ -60,7 +54,6 @@ static int server_complete_registration(struct ctx_t *ctx,
     if (!network_server)
     {
       /* Server not in network specification file */
-      chilog(DEBUG, "server not in network file");
       chirc_message_construct(&reply_msg, this_server->servername,
                               "ERROR");
       chirc_message_add_parameter(&reply_msg,
@@ -70,7 +63,6 @@ static int server_complete_registration(struct ctx_t *ctx,
     else if (network_server->is_registered)
     {
       /* Server already registered */
-      chilog(DEBUG, "server already registered");
       chirc_message_construct(&reply_msg, this_server->servername,
                               "ERROR");
       sprintf(param_buffer, "ID \"%s\" already registered", server->servername);
@@ -79,7 +71,6 @@ static int server_complete_registration(struct ctx_t *ctx,
     }
     else if (strcmp(this_server->password, server->password))
     {
-        chilog(DEBUG, "incorrect password");
         /* Incorrect password */
         server->is_registered = true;
         chirc_message_construct(&reply_msg, this_server->servername,
@@ -90,7 +81,6 @@ static int server_complete_registration(struct ctx_t *ctx,
     }
     else
     {
-        chilog(DEBUG, "Sending PASS and SERVER replies");
         network_server->is_registered = true;
         chirc_message_construct(&reply_msg, this_server->servername,
                                 "PASS");
@@ -105,7 +95,6 @@ static int server_complete_registration(struct ctx_t *ctx,
         chirc_message_add_parameter(&reply_msg, "1", false);
         chirc_message_add_parameter(&reply_msg, "chirc server", true);
         error = send_message_to_server(&reply_msg, server);
-        chilog(DEBUG, "Sent PASS and SERVER replies");
 
         server->is_registered = true;
         strncpy(server->password, network_server->password, MAX_PASSWORD_LEN);
@@ -259,15 +248,12 @@ int handle_PASS_SERVER(struct ctx_t *ctx, struct chirc_message_t *msg,
     chirc_message_clear(&reply_msg);
     struct chirc_server_t *this_server = ctx->this_server;
 
-    chilog(DEBUG, "received server is_registered = %d", server->is_registered);
-
     if ((error = handle_not_enough_parameters(ctx, msg, server, 3)))
     {
         return error;
     }
     else if (server->is_registered)
     {
-        chilog(DEBUG, "server already registered");
         chirc_message_construct(&reply_msg, this_server->servername,
                                 ERR_ALREADYREGISTERED);
         chirc_message_add_parameter(&reply_msg, server->servername, false);
@@ -276,7 +262,6 @@ int handle_PASS_SERVER(struct ctx_t *ctx, struct chirc_message_t *msg,
     }
     else
     {
-        chilog(DEBUG, "About to set password");
         strncpy(server->password, msg->params[0], MAX_PASSWORD_LEN);
 
         /* Complete Registration */
@@ -294,11 +279,9 @@ int handle_SERVER_SERVER(struct ctx_t *ctx, struct chirc_message_t *msg,
     struct chirc_message_t reply_msg;
     chirc_message_clear(&reply_msg);
     struct chirc_server_t *this_server = ctx->this_server;
-    chilog(DEBUG, "In handle_SERVER in server %s for server %s", this_server->servername, server->servername);
 
     if (server->is_registered)
     {
-        chilog(DEBUG, "server already registered");
         chirc_message_construct(&reply_msg, this_server->servername,
                                 ERR_ALREADYREGISTERED);
         chirc_message_add_parameter(&reply_msg, server->servername, false);
@@ -307,7 +290,6 @@ int handle_SERVER_SERVER(struct ctx_t *ctx, struct chirc_message_t *msg,
     }
     else if (msg->params[0] != NULL)
     {
-        chilog(DEBUG, "About to set servername");
         strncpy(server->servername, msg->params[0], MAX_SERVER_LEN);
         if (*server->password != '\0')
         {

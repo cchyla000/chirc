@@ -170,7 +170,6 @@ int main(int argc, char *argv[])
         while (fgets(buffer, NI_MAXHOST, fp) != NULL)
         {
             rest = buffer;
-            chilog(DEBUG, buffer);
             for (i = 0; token = strtok_r(rest, ",\n", &rest); i++)
             {
                 switch (i)
