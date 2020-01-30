@@ -1,3 +1,11 @@
+/*
+ *  FILENAME: server_handler.h
+ *  DESCRIPTION: Functions for handling recieved messages sent to the server by
+ *  a server
+ *  AUTHORS: Cameron Chyla and Artur Genser (acknowledgement to CMSC 23320)
+ *  LAST DATE MODIFIED: January 30th, 2020
+ */
+
 #ifndef CHIRC_SERVER_HANDLER_H
 #define CHIRC_SERVER_HANDLER_H
 

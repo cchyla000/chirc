@@ -1,3 +1,10 @@
+/*
+ *  FILENAME: server_handler.c
+ *  DESCRIPTION: Implementation of user_handler.h
+ *  AUTHORS: Cameron Chyla and Artur Genser (acknowledgement to CMSC 23320)
+ *  LAST DATE MODIFIED: January 30th, 2020
+ */
+
 #include <stdio.h>
 
 #include "server_handler.h"
@@ -141,7 +148,8 @@ static int server_complete_registration(struct ctx_t *ctx,
  *
  * RETURN: 0 upon succesful completion, any other integer if error with sending
  */
-static int forward_to_other_servers(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_server_t *server)
+static int forward_to_other_servers(struct ctx_t *ctx,
+                    struct chirc_message_t *msg, struct chirc_server_t *server)
 {
     int error = 0;
     pthread_mutex_lock(&ctx->servers_lock);
@@ -189,7 +197,7 @@ int handle_NICK_SERVER(struct ctx_t *ctx, struct chirc_message_t *msg,
 }
 
 int handle_PRIVMSG_SERVER(struct ctx_t *ctx, struct chirc_message_t *msg,
-                                         struct chirc_server_t *server)
+                                                  struct chirc_server_t *server)
 {
     forward_to_other_servers(ctx, msg, server);
     struct chirc_user_t *recipient;
@@ -230,7 +238,7 @@ int handle_PRIVMSG_SERVER(struct ctx_t *ctx, struct chirc_message_t *msg,
 }
 
 int handle_JOIN_SERVER(struct ctx_t *ctx, struct chirc_message_t *msg,
-                                         struct chirc_server_t *server)
+                                                  struct chirc_server_t *server)
 {
     forward_to_other_servers(ctx, msg, server);
     char channel_name[MAX_CHANNEL_NAME_LEN + 1];
@@ -273,7 +281,7 @@ int handle_JOIN_SERVER(struct ctx_t *ctx, struct chirc_message_t *msg,
 }
 
 int handle_PASS_SERVER(struct ctx_t *ctx, struct chirc_message_t *msg,
-                                         struct chirc_server_t *server)
+                                                  struct chirc_server_t *server)
 {
     int error;
     struct chirc_message_t reply_msg;
@@ -289,7 +297,8 @@ int handle_PASS_SERVER(struct ctx_t *ctx, struct chirc_message_t *msg,
         chirc_message_construct(&reply_msg, this_server->servername,
                                 ERR_ALREADYREGISTERED);
         chirc_message_add_parameter(&reply_msg, server->servername, false);
-        chirc_message_add_parameter(&reply_msg, "Connection already registered", true);
+        chirc_message_add_parameter(&reply_msg, "Connection already registered",
+                                                                          true);
         error = send_message_to_server(&reply_msg, server);
     }
     else
@@ -317,7 +326,8 @@ int handle_SERVER_SERVER(struct ctx_t *ctx, struct chirc_message_t *msg,
         chirc_message_construct(&reply_msg, this_server->servername,
                                 ERR_ALREADYREGISTERED);
         chirc_message_add_parameter(&reply_msg, server->servername, false);
-        chirc_message_add_parameter(&reply_msg, "Connection already registered", true);
+        chirc_message_add_parameter(&reply_msg, "Connection already registered",
+                                                                          true);
         error = send_message_to_server(&reply_msg, server);
     }
     else if (msg->params[0] != NULL)

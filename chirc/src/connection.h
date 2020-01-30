@@ -1,3 +1,11 @@
+/*
+ *  FILENAME: connection.h
+ *  DESCRIPTION: Functions for servicing a connection and sending messages
+    to connections.
+ *  AUTHORS: Cameron Chyla and Artur Genser (acknowledgement to CMSC 23320)
+ *  LAST DATE MODIFIED: January 30th, 2020
+ */
+
 #ifndef CHIRC_CONNECTION_H
 #define CHIRC_CONNECTION_H
 
@@ -16,9 +24,9 @@
 
 enum connection_type { UNKNOWN, USER, SERVER };
 
-/* 
+/*
  * Forward declaration so we don't include ctx.h and connection.h in
- * each others' header files: 
+ * each others' header files:
  */
 struct ctx_t ctx;
 
@@ -88,8 +96,9 @@ void *service_connection(void *args);
 
 /* NAME: destroy_connection
  *
- * DESCRIPTION: Frees memory associated with a connection and removes it from
- * the server context.
+ * DESCRIPTION: Appropriately decrements the context variables that store the
+ * number of connections/users/servers and removes from appropriate
+ * hash table
  *
  * PARAMETERS:
  *  connection - connection to be destroyed
@@ -99,12 +108,28 @@ void *service_connection(void *args);
  */
 void destroy_connection(struct chirc_connection_t *connection, struct ctx_t *ctx);
 
-/* Sends a message to a given user and does error checking; terminates
- * thread and destroys user if error in sending detected */
+/* NAME: send_message
+ *
+ * DESCRIPTION: Sends a message to a given user and does error checking
+ *
+ * PARAMETERS:
+ *  msg - message to be sent
+ *  user - user that message should be sent to
+ *
+ * RETURN: 0 if succesful, -1 if send fails
+ */
 int send_message(struct chirc_message_t *msg, struct chirc_user_t *user);
 
-/* Sends a message to a given server and does error checking; terminates
- * thread and destroys user if error in sending detected */
+/* NAME: send_message_to_server
+ *
+ * DESCRIPTION: Sends a message to a given server and does error checking
+ *
+ * PARAMETERS:
+ *  msg - message to be sent
+ *  server - server that message should be sent to
+ *
+ * RETURN: 0 if succesful, -1 if send fails
+ */
 int send_message_to_server(struct chirc_message_t *msg, struct chirc_server_t *server);
 
 #endif /* CHIRC_CONNECTION_H */

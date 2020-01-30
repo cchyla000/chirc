@@ -1,3 +1,10 @@
+/*
+ *  FILENAME: connection.c
+ *  DESCRIPTION: Implementation of connection.h
+ *  AUTHORS: Cameron Chyla and Artur Genser (acknowledgement to CMSC 23320)
+ *  LAST DATE MODIFIED: January 30th, 2020
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -315,11 +322,6 @@ void *service_connection(void *args)
     }
 }
 
-/*
- * Appropriately decrements the context variables that store the
- * number of connections/users/servers and removes from appropriate
- * hash table
- */
 void destroy_connection(struct chirc_connection_t *connection, struct ctx_t *ctx)
 {
     struct chirc_channel_t *channel;

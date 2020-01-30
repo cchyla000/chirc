@@ -1,3 +1,10 @@
+/*
+ *  FILENAME: user_handler.c
+ *  DESCRIPTION: Implementation of user_handler.h
+ *  AUTHORS: Cameron Chyla and Artur Genser (acknowledgement to CMSC 23320)
+ *  LAST DATE MODIFIED: January 30th, 2020
+ */
+
 #include <sys/socket.h>
 #include <string.h>
 #include <unistd.h>
@@ -98,7 +105,7 @@ static int send_welcome_messages(struct ctx_t *ctx, struct chirc_user_t *user)
     chirc_message_construct(&msg, server->servername, RPL_YOURHOST);
     chirc_message_add_parameter(&msg, user->nickname, false);
     sprintf(param_buffer, "Your host is %s, running version %s",
-            server->servername, IRC_VERSION);
+                                              server->servername, IRC_VERSION);
     chirc_message_add_parameter(&msg, param_buffer, true);
     error = send_message(&msg, user);
     if (error)
@@ -111,7 +118,7 @@ static int send_welcome_messages(struct ctx_t *ctx, struct chirc_user_t *user)
     chirc_message_construct(&msg, server->servername, RPL_CREATED);
     chirc_message_add_parameter(&msg, user->nickname, false);
     sprintf(param_buffer, "This server was created %s",
-            ctx->date_created);
+                                                            ctx->date_created);
     chirc_message_add_parameter(&msg, param_buffer, true);
     error = send_message(&msg, user);
     if (error)
@@ -807,8 +814,8 @@ int handle_LUSERS_USER(struct ctx_t *ctx, struct chirc_message_t *msg,
     /* Send RPL_LUSERUNKNOWN */
     chirc_message_construct(&reply_msg, server->servername, RPL_LUSERUNKNOWN);
     chirc_message_add_parameter(&reply_msg, user->nickname, false);
-    sprintf(param_buffer, "%d",
-            ctx->num_direct_connections - ctx->num_direct_users - ctx->num_direct_servers);
+    sprintf(param_buffer, "%d", ctx->num_direct_connections -
+                              ctx->num_direct_users - ctx->num_direct_servers);
     chirc_message_add_parameter(&reply_msg, param_buffer, false);
     chirc_message_add_parameter(&reply_msg, "unknown connection(s)", true);
     error = send_message(&reply_msg, user);
@@ -913,7 +920,8 @@ int handle_WHOIS_USER(struct ctx_t *ctx, struct chirc_message_t *msg,
         }
         else
         {
-            chirc_message_add_parameter(&reply_msg, found_user->server->servername, false);
+            chirc_message_add_parameter(&reply_msg,
+                                        found_user->server->servername, false);
         }
 
         chirc_message_add_parameter(&reply_msg, "server info", true);
@@ -954,10 +962,12 @@ int handle_JOIN_USER(struct ctx_t *ctx, struct chirc_message_t *msg,
         return error;
     }
     struct chirc_channel_t *channel;
-    struct chirc_message_t local_msg; // message that gets sent to users on server
+    /* local_msg is the message that gets sent to users on this server,
+     * outgoing_msg is the message that gets sent to other servers. */
+    struct chirc_message_t local_msg;
     chirc_message_clear(&local_msg);
     char local_buffer[MAX_MSG_LEN + 1] = {0};
-    struct chirc_message_t outgoing_msg; // message that gets sent to connected servers
+    struct chirc_message_t outgoing_msg;
     chirc_message_clear(&outgoing_msg);
     char channel_name[MAX_CHANNEL_NAME_LEN + 1];
     strcpy(channel_name, msg->params[0]);
@@ -991,7 +1001,8 @@ int handle_JOIN_USER(struct ctx_t *ctx, struct chirc_message_t *msg,
     }
 
     /* Send JOIN message to everyone on channel and other servers */
-    sprintf(local_buffer, "%s!%s@%s", user->nickname, user->username, user->hostname);
+    sprintf(local_buffer, "%s!%s@%s", user->nickname, user->username,
+                                                                user->hostname);
     chirc_message_construct(&local_msg, local_buffer, msg->cmd);
     chirc_message_construct(&outgoing_msg, user->nickname, msg->cmd);
     for (int i = 0; i < msg->nparams; i++)
@@ -1009,7 +1020,8 @@ int handle_JOIN_USER(struct ctx_t *ctx, struct chirc_message_t *msg,
         }
     }
     pthread_mutex_lock(&ctx->servers_lock);
-    for (server_other = ctx->servers; server_other != NULL; server_other = server_other->hh.next)
+    for (server_other = ctx->servers; server_other != NULL;
+                                          server_other = server_other->hh.next)
     {
         if (server_other->is_registered)
         {
@@ -1129,7 +1141,7 @@ int handle_MODE_USER(struct ctx_t *ctx, struct chirc_message_t *msg,
                                      user_container=user_container->hh.next)
                 {
                     user_in_channel = find_user_in_channel(ctx, channel,
-                                                         user_container->nickname);
+                                                      user_container->nickname);
                     send_message(&reply_msg, user_in_channel);
                 }
             }
@@ -1147,7 +1159,7 @@ int handle_MODE_USER(struct ctx_t *ctx, struct chirc_message_t *msg,
                                      user_container=user_container->hh.next)
                 {
                     user_in_channel = find_user_in_channel(ctx, channel,
-                                                         user_container->nickname);
+                                                      user_container->nickname);
                     send_message(&reply_msg, user_in_channel);
                 }
             }
@@ -1376,14 +1388,16 @@ int handle_CONNECT_USER(struct ctx_t *ctx, struct chirc_message_t *msg,
 
             chirc_message_construct(&reply_msg, this_server->servername,
                                 "PASS");
-            chirc_message_add_parameter(&reply_msg, found_server->password, false);
+            chirc_message_add_parameter(&reply_msg, found_server->password,
+                                                                        false);
             chirc_message_add_parameter(&reply_msg, "0210", false);
             chirc_message_add_parameter(&reply_msg, "chirc|0.5.1", false);
             send_message_to_server(&reply_msg, found_server);
 
             chirc_message_construct(&reply_msg, this_server->servername,
                                     "SERVER");
-            chirc_message_add_parameter(&reply_msg, this_server->servername, false);
+            chirc_message_add_parameter(&reply_msg, this_server->servername,
+                                                                        false);
             chirc_message_add_parameter(&reply_msg, "1", false);
             chirc_message_add_parameter(&reply_msg, "chirc server", true);
             send_message_to_server(&reply_msg, found_server);

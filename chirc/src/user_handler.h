@@ -1,3 +1,11 @@
+/*
+ *  FILENAME: user_handler.h
+ *  DESCRIPTION: Functions for handling recieved messages sent to the server by
+ *  a user
+ *  AUTHORS: Cameron Chyla and Artur Genser (acknowledgement to CMSC 23320)
+ *  LAST DATE MODIFIED: January 30th, 2020
+ */
+
 #ifndef CHIRC_USER_HANDLER_H
 #define CHIRC_USER_HANDLER_H
 

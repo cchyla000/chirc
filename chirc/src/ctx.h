@@ -1,3 +1,10 @@
+/*
+ *  FILENAME: ctx.h
+ *  DESCRIPTION: Structure definitions for the shared information for the server 
+ *  AUTHORS: Cameron Chyla and Artur Genser (acknowledgement to CMSC 23320)
+ *  LAST DATE MODIFIED: January 30th, 2020
+ */
+
 #ifndef CHIRC_CTX_H
 #define CHIRC_CTX_H
 
@@ -22,7 +29,7 @@ struct ctx_t
     struct chirc_user_t *users;
     struct chirc_channel_t *channels;
     /* All servers in network specification file: */
-    struct chirc_server_t *servers; 
+    struct chirc_server_t *servers;
     struct chirc_server_t *this_server;
     char date_created[DATE_LEN];
 

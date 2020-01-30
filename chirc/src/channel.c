@@ -1,3 +1,10 @@
+/*
+ *  FILENAME: channel.c
+ *  DESCRIPTION: Implementation of channel.h
+ *  AUTHORS: Cameron Chyla and Artur Genser (acknowledgement to CMSC 23320)
+ *  LAST DATE MODIFIED: January 30th, 2020
+ */
+
 #include <stdlib.h>
 
 #include "channel.h"

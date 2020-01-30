@@ -1,3 +1,10 @@
+/*
+ *  FILENAME: message.c
+ *  DESCRIPTION: Implementation of message.h
+ *  AUTHORS: Cameron Chyla and Artur Genser (acknowledgement to CMSC 23320)
+ *  LAST DATE MODIFIED: January 30th, 2020
+ */
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
