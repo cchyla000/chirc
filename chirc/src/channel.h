@@ -4,11 +4,17 @@
 #include <pthread.h>
 
 #include "../lib/uthash.h"
-#include "connection.h"
-#include "ctx.h"
 
 #define MAX_CHANNEL_NAME_LEN 50
 #define MAX_NICK_LEN 9
+
+/* 
+ * Forward declarations so we don't have to include connection.h,
+ * ctx.h, and channel.h in each others' header files: 
+ */
+struct chirc_user_cont_t;
+struct chirc_user_t;
+struct ctx_t;
 
 /* Struct to accommadate uthash's inability to have the same pointer in more
  * than one hash. This is the struct contained in the user's hash of channels */
