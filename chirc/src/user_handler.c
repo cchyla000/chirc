@@ -22,10 +22,20 @@
 
 #define IRC_VERSION "2.10"
 
-/* Send a NICK command to all connected servers with all of a given user's
- * information. Sent upon completing registration. */
+/* NAME: send_nick_to_servers
+ *
+ * DESCRIPTION: Send a NICK command to all connected servers with all of a
+ * given user's information. Sent upon completing registration.
+ *
+ * PARAMETERS:
+ *  ctx - context for this server
+ *  user - user who's information should be sent
+ *
+ * RETURN: 0 upon succesful completion, any other integer if error with sending
+ */
 static int send_nick_to_servers(struct ctx_t *ctx, struct chirc_user_t *user)
 {
+    int error = 0;
     struct chirc_message_t msg;
     chirc_message_clear(&msg);
     struct chirc_server_t *server = ctx->this_server;
@@ -42,13 +52,24 @@ static int send_nick_to_servers(struct ctx_t *ctx, struct chirc_user_t *user)
     {
         if (server->is_registered && server != ctx->this_server)
         {
-            send_message_to_server(&msg, server);
+            error += send_message_to_server(&msg, server);
         }
     }
     pthread_mutex_unlock(&ctx->servers_lock);
+    return error;
 }
 
-/* Sends Replies 001 to 004 to specified user upon successful registration */
+/* NAME: send_welcome_messages
+ *
+ * DESCRIPTION: Sends Replies 001 to 004 to specified user upon successful
+ * registration.
+ *
+ * PARAMETERS:
+ *  ctx - context for this server
+ *  user - user that the replies should be sent to
+ *
+ * RETURN: 0 upon succesful completion, any other integer if error with sending
+ */
 static int send_welcome_messages(struct ctx_t *ctx, struct chirc_user_t *user)
 {
 
@@ -209,13 +230,21 @@ static int send_welcome_messages(struct ctx_t *ctx, struct chirc_user_t *user)
     {
         return error;
     }
-
-
-
     return 0;
 }
 
-/* Given a user, sends the ERR_NOTREGISTERED response to them */
+/* NAME: handle_not_registered
+ *
+ * DESCRIPTION: Given a user, sends the ERR_NOTREGISTERED response to them if
+ * they are not registered.
+ *
+ * PARAMETERS:
+ *  ctx - context for this server
+ *  user - user that the message should be sent to if unregistered
+ *
+ * RETURN: 0 if response not sent, 1 if response sent, -1 if error with sending
+ * message.
+ */
 static int handle_not_registered(struct ctx_t *ctx, struct chirc_user_t *user)
 {
     int error;
@@ -226,10 +255,9 @@ static int handle_not_registered(struct ctx_t *ctx, struct chirc_user_t *user)
     if (!user->is_registered)
     {
         chirc_message_construct(&reply_msg, server->servername,
-                                ERR_NOTREGISTERED);
+                                                            ERR_NOTREGISTERED);
         chirc_message_add_parameter(&reply_msg, user->nickname, false);
-        chirc_message_add_parameter(&reply_msg, "You have not registered",
-                                    true);
+        chirc_message_add_parameter(&reply_msg, "You have not registered", true);
         error = send_message(&reply_msg, user);
         if (error)
         {
@@ -243,9 +271,20 @@ static int handle_not_registered(struct ctx_t *ctx, struct chirc_user_t *user)
     return 0;
 }
 
-/* Given a user, a message, and the desired number of parameters, sends the
- * ERR_NEEDMOREPARAMS response to the user if the message does not have
- * enough parameters. */
+/* NAME: handle_not_enough_parameters
+ *
+ * DESCRIPTION: Sends the ERR_NEEDMOREPARAMS response to a user if a message
+ * does not have enough parameters.
+ *
+ * PARAMETERS:
+ *  ctx - context for this server
+ *  msg - message to check for proper number of parameters
+ *  user - user that the message should be sent to if needed
+ *  nparams - desired minimum number of parameters
+ *
+ * RETURN: 0 if response not sent, 1 if response sent, -1 if error with sending
+ * message.
+ */
 static int handle_not_enough_parameters(struct ctx_t *ctx,
             struct chirc_message_t *msg, struct chirc_user_t *user, int nparams)
 {
@@ -274,20 +313,37 @@ static int handle_not_enough_parameters(struct ctx_t *ctx,
     return error;
 }
 
-/* Forwards message with prefix to the given recipient user or all users on
- * a recipient channel. Used to be used by PRIVMSG and NOTICE to reduce
- * repeated code, but NOTICE no longer exists */
+/* NAME: forward_message_to_user_or_channel
+ *
+ * DESCRIPTION: Forwards message with prefix to the given recipient user or all
+ * users on a recipient channel. Used to be used by PRIVMSG and NOTICE to reduce
+ * repeated code, but NOTICE no longer exists.
+ *
+ * PARAMETERS:
+ *  ctx - context for this server
+ *  msg - message to be forwarded
+ *  user - user that sent the message to be forwarded
+ *  recipient - user that should recieve forwarded message (NULL if sending to
+ *  a channel)
+ *  recipient - channel that should recieve forwarded message (NULL if sending
+ *  to a user)
+ *
+ * RETURN: 0 upon success, any other integer if there was an error in sending.
+ */
 static int forward_message_to_user_or_channel(struct ctx_t *ctx,
   struct chirc_message_t *msg, struct chirc_user_t *user,
   struct chirc_user_t *recipient, struct chirc_channel_t *recipient_channel)
 {
-    struct chirc_message_t local_msg; // message that gets sent to users on server
+    /* local_msg is the message that gets sent to users on this server,
+     * outgoing_msg is the message that gets sent to other servers. */
+    struct chirc_message_t local_msg;
     chirc_message_clear(&local_msg);
     char local_buffer[MAX_MSG_LEN + 1] = {0};
-    struct chirc_message_t outgoing_msg; // message that gets sent to connected servers
+    struct chirc_message_t outgoing_msg;
     chirc_message_clear(&outgoing_msg);
-
-    sprintf(local_buffer, "%s!%s@%s", user->nickname, user->username, user->hostname);
+    int error = 0;
+    sprintf(local_buffer, "%s!%s@%s", user->nickname, user->username,
+                                                                user->hostname);
     chirc_message_construct(&local_msg, local_buffer, msg->cmd);
     chirc_message_construct(&outgoing_msg, user->nickname, msg->cmd);
     for (int i = 0; i < msg->nparams - 1; i++)
@@ -301,16 +357,17 @@ static int forward_message_to_user_or_channel(struct ctx_t *ctx,
     {
         if (recipient->is_on_server)
         {
-            send_message(&local_msg, recipient);
+            error += send_message(&local_msg, recipient);
         }
         else
         {
             pthread_mutex_lock(&ctx->servers_lock);
-            for (struct chirc_server_t *server = ctx->servers; server != NULL; server = server->hh.next)
+            for (struct chirc_server_t *server = ctx->servers; server != NULL;
+                                                      server = server->hh.next)
             {
                 if (server->is_registered)
                 {
-                    send_message_to_server(&outgoing_msg, server);
+                    error += send_message_to_server(&outgoing_msg, server);
                 }
             }
             pthread_mutex_unlock(&ctx->servers_lock);
@@ -324,12 +381,12 @@ static int forward_message_to_user_or_channel(struct ctx_t *ctx,
         struct chirc_user_cont_t *user_container;
         struct chirc_server_t *server;
         pthread_mutex_lock(&recipient_channel->lock);
-        for (user_container=recipient_channel->users; user_container != NULL;
-                                       user_container=user_container->hh.next)
+        for (user_container = recipient_channel->users; user_container != NULL;
+                                       user_container = user_container->hh.next)
         {
             if (user_container->user->is_on_server)
             {
-                send_message(&local_msg, user_container->user);
+                error += send_message(&local_msg, user_container->user);
             }
         }
         pthread_mutex_lock(&ctx->servers_lock);
@@ -337,12 +394,13 @@ static int forward_message_to_user_or_channel(struct ctx_t *ctx,
         {
             if (server->is_registered)
             {
-                send_message_to_server(&outgoing_msg, server);
+                error += send_message_to_server(&outgoing_msg, server);
             }
         }
         pthread_mutex_unlock(&ctx->servers_lock);
         pthread_mutex_unlock(&recipient_channel->lock);
     }
+    return error;
 }
 
 int handle_NICK_USER(struct ctx_t *ctx, struct chirc_message_t *msg,

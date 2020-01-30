@@ -68,13 +68,30 @@ struct chirc_connection_t {
     struct chirc_server_t *server; // is NULL if not server
 };
 
-
-/* Function that is used to run the thread when a new connection is recieved.
- * Parses the incoming messages and sends them to the appropriate message
- * handler using a dispath table. */
+/* NAME: service_connection
+ *
+ * DESCRIPTION: Function that is used to run the thread when a new connection
+ * is recieved. Parses the incoming messages and sends them to the appropriate
+ * message handler using a dispath table.
+ *
+ * PARAMETERS:
+ *  args - pointer to worker arguments (see ctx.h)
+ *
+ * RETURN: nothing
+ */
 void *service_connection(void *args);
 
-/* Frees a connection (user or server) and all of its information */
+/* NAME: destroy_connection
+ *
+ * DESCRIPTION: Frees memory associated with a connection and removes it from
+ * the server context.
+ *
+ * PARAMETERS:
+ *  connection - connection to be destroyed
+ *  ctx - context of the server connection is on
+ *
+ * RETURN: nothing
+ */
 void destroy_connection(struct chirc_connection_t *connection, struct ctx_t *ctx);
 
 /* Sends a message to a given user and does error checking; terminates

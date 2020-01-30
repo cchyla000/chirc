@@ -4,11 +4,22 @@
 #include "reply.h"
 #include "log.h"
 
-/* Given a server, a message, and the desired number of parameters, sends the
- * ERR_NEEDMOREPARAMS response to the server if the message does not have
- * enough parameters. */
+/* NAME: handle_not_enough_parameters
+ *
+ * DESCRIPTION: Sends the ERR_NEEDMOREPARAMS response to a server if a message
+ * does not have enough parameters.
+ *
+ * PARAMETERS:
+ *  ctx - context for this server
+ *  msg - message to check for proper number of parameters
+ *  server - server that the message should be sent to if needed
+ *  nparams - desired minimum number of parameters
+ *
+ * RETURN: 0 if response not sent, 1 if response sent, -1 if error with sending
+ * message.
+ */
 static int handle_not_enough_parameters(struct ctx_t *ctx,
-            struct chirc_message_t *msg, struct chirc_server_t *server, int nparams)
+        struct chirc_message_t *msg, struct chirc_server_t *server, int nparams)
 {
     struct chirc_message_t reply_msg;
     int error = 0;
@@ -35,10 +46,19 @@ static int handle_not_enough_parameters(struct ctx_t *ctx,
     return error;
 }
 
-/* Responds to a server that sends PASS and SERVER messages, and registers the
- * the server if was unregistered previously */
+/* NAME: server_complete_registration
+ *
+ * DESCRIPTION: Responds to a server that sends PASS and SERVER messages,
+ * and registers the server if it was unregistered previously.
+ *
+ * PARAMETERS:
+ *  ctx - context for this server
+ *  server - server that has sent PASS and SERVER
+ *
+ * RETURN: 0 upon succesful completion, any other integer if error with sending
+ */
 static int server_complete_registration(struct ctx_t *ctx,
-             struct chirc_message_t *msg, struct chirc_server_t *server)
+                                                 struct chirc_server_t *server)
 {
     char param_buffer[MAX_MSG_LEN + 1] = {0};
     struct chirc_server_t *network_server = NULL;
@@ -99,7 +119,7 @@ static int server_complete_registration(struct ctx_t *ctx,
         server->is_registered = true;
         strncpy(server->password, network_server->password, MAX_PASSWORD_LEN);
         strncpy(server->port, network_server->port, MAX_PORT_LEN);
-       
+
         pthread_mutex_lock(&ctx->servers_lock);
         HASH_DEL(ctx->servers, network_server);
         HASH_ADD_STR(ctx->servers, servername, server);
@@ -109,20 +129,32 @@ static int server_complete_registration(struct ctx_t *ctx,
     return error;
 }
 
-/* Sends a given message to all servers connected to this server, except for
- * a given server (probably the server sending the original message) */
+/* NAME: forward_to_other_servers
+ *
+ * DESCRIPTION: Forwards a given message to other connected servers
+ *
+ * PARAMETERS:
+ *  ctx - context for this server
+ *  msg - message to be forwarded
+ *  server - server that this message should not be forwarded to (usually the
+ *  server that sent the message)
+ *
+ * RETURN: 0 upon succesful completion, any other integer if error with sending
+ */
 static int forward_to_other_servers(struct ctx_t *ctx, struct chirc_message_t *msg, struct chirc_server_t *server)
 {
+    int error = 0;
     pthread_mutex_lock(&ctx->servers_lock);
     for (struct chirc_server_t *other_server = ctx->servers; other_server != NULL;
                                           other_server = other_server->hh.next)
     {
         if (other_server->is_registered && other_server != server)
         {
-            send_message_to_server(msg, other_server);
+            error += send_message_to_server(msg, other_server);
         }
     }
     pthread_mutex_unlock(&ctx->servers_lock);
+    return error;
 }
 
 int handle_NICK_SERVER(struct ctx_t *ctx, struct chirc_message_t *msg,
@@ -267,7 +299,7 @@ int handle_PASS_SERVER(struct ctx_t *ctx, struct chirc_message_t *msg,
         /* Complete Registration */
         if (*server->servername != '\0')
         {
-            server_complete_registration(ctx, msg, server);
+            server_complete_registration(ctx, server);
         }
     }
 }
@@ -293,7 +325,7 @@ int handle_SERVER_SERVER(struct ctx_t *ctx, struct chirc_message_t *msg,
         strncpy(server->servername, msg->params[0], MAX_SERVER_LEN);
         if (*server->password != '\0')
         {
-            server_complete_registration(ctx, msg, server);
+            server_complete_registration(ctx, server);
         }
 
     }
