@@ -255,15 +255,54 @@ static int chitcpd_tcp_packet_arrival_handle(serverinfo_t *si, chisocketentry_t 
     {
         if (header->ack)
         {
-            return 0;
+            if SEG_ACK(packet) <= tcp_data->ISS || SEG_ACK(packet) > tcp_data->SEND_NXT
+            {
+                return CHITCP_OK;
+            }
         }
         if (header->syn)
         {
-
+            tcp_data->RCV_NXT = SEG_SEQ(packet) + 1;
+            tcp_data->IRS = SEG_SEQ(packet);
+            if (header->ack)
+            {
+                tcp_data->SND_UNA = SEG_ACK(packet);
+                /* any segments on the retransmission queue which are thereby
+                 * acknowledged should be removed */
+            }
+            if (tcp_data->SND_UNA > tcp_data->ISS)
+            {
+                chitcpd_update_tcp_state(si, entry, ESTABLISHED);
+                tcp_packet_t *send_packet = calloc(1, sizeof(tcp_packet_t));
+                tcphdr_t *send_header;
+                chitcpd_tcp_packet_create(entry, packet, NULL, 0);
+                send_header = TCP_PACKET_HEADER(packet);
+                // <SEQ=SND.NXT><ACK=RCV.NXT><CTL=ACK>
+                send_header->seq = tcp_data->SND_NXT
+                send_header->ack_seq = tcp_data->RCV_NEXT
+                send_header->ack = 1;
+                chitcpd_send_tcp_packet(si, entry, send_packet);
+                free(send_packet);
+            }
+            else
+            {
+                chitcpd_update_tcp_state(si, entry, SYN-RECEIVED);
+                tcp_packet_t *send_packet = calloc(1, sizeof(tcp_packet_t));
+                tcphdr_t *send_header;
+                chitcpd_tcp_packet_create(entry, packet, NULL, 0);
+                send_header = TCP_PACKET_HEADER(packet);
+                // <SEQ=ISS><ACK=RCV.NXT><CTL=SYN,ACK>
+                send_header->seq = tcp_data->ISS
+                send_header->ack_seq = tcp_data->RCV_NEXT
+                send_header->syn = 1;
+                send_header->ack = 1;
+                chitcpd_send_tcp_packet(si, entry, send_packet);
+                free(send_packet);
+            }
         }
         else
         {
-            return 0;
+            return CHITCP_OK;
         }
     }
 //   If the state is SYN-SENT then
