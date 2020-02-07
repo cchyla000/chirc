@@ -156,10 +156,10 @@ int chitcpd_tcp_state_handle_CLOSED(serverinfo_t *si, chisocketentry_t *entry, t
             tcp_packet_t *packet = calloc(1, sizeof(tcp_packet_t));
             tcphdr_t *header;
             uint8_t payload = 0;
-            chitcpd_tcp_packet_create(entry, &packet, &payload, 1);
+            chitcpd_tcp_packet_create(entry, packet, &payload, 1);
             header = TCP_PACKET_HEADER(packet);
-            header->seq = chitcp_htonl(tcp_data.ISS);
-            header->win = chitcp_htons(tcp_data.SND_WND);
+            header->seq = chitcp_htonl(tcp_data->ISS);
+            header->win = chitcp_htons(tcp_data->SND_WND);
             header->syn = 1;
             chitcpd_send_tcp_packet(si, entry, packet);
             chitcpd_update_tcp_state(si, entry, SYN_SENT);
