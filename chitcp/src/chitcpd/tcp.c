@@ -131,7 +131,22 @@ int chitcpd_tcp_state_handle_CLOSED(serverinfo_t *si, chisocketentry_t *entry, t
 {
     if (event == APPLICATION_CONNECT)
     {
-        /* Your code goes here */
+        tcp_data_init(si, entry);
+
+        // Is it possible for some parts of the foreign socket to be unspecififed in a passive OPEN?
+
+        if (entry->actpas_type == SOCKET_PASSIVE)
+        {
+            chitcpd_update_tcp_state(si, entry, LISTEN);
+        }
+        else if (entry->actpas_type == SOCKET_ACTIVE)
+        {
+            if ()
+            {
+
+            }
+        }
+
     }
     else if (event == CLEANUP)
     {
