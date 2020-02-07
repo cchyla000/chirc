@@ -111,6 +111,7 @@ void tcp_data_init(serverinfo_t *si, chisocketentry_t *entry)
 
     /* Initialization of additional tcp_data_t fields,
      * and creation of retransmission thread, goes here */
+
 }
 
 void tcp_data_free(serverinfo_t *si, chisocketentry_t *entry)
@@ -673,9 +674,11 @@ static int chitcpd_tcp_packet_arrival_handle(serverinfo_t *si, chisocketentry_t 
 
 int chitcpd_tcp_state_handle_CLOSED(serverinfo_t *si, chisocketentry_t *entry, tcp_event_type_t event)
 {
+
+    tcp_data_t *tcp_data = &entry->socket_state.active.tcp_data;
+
     if (event == APPLICATION_CONNECT)
     {
-        tcp_data_init(si, entry);
 
         // Is it possible for some parts of the foreign socket to be unspecififed in a passive OPEN?
 
@@ -685,10 +688,26 @@ int chitcpd_tcp_state_handle_CLOSED(serverinfo_t *si, chisocketentry_t *entry, t
         }
         else if (entry->actpas_type == SOCKET_ACTIVE)
         {
-            if ()
-            {
+            // Need to check that foreign socket is unspecified
+            // ie, check struct sockaddr_storage remote_addr in chisocketentry??
+            tcp_data_init(si, entry);
+            int iss = rand();
+            tcp_data->ISS = iss;
+            tcp_data->SND_UNA = iss;
+            tcp_data->SND_NXT = iss + 1;
+            tcp_data->SND_WND = 4096;
 
-            }
+            tcp_packet_t *packet = calloc(1, sizeof(tcp_packet_t));
+            tcphdr_t *header;
+            uint8_t payload = 0;
+            chitcpd_tcp_packet_create(entry, &packet, &payload, 1);
+            header = TCP_PACKET_HEADER(packet);
+            header->seq = chitcp_htonl(tcp_data.ISS);
+            header->win = chitcp_htons(tcp_data.SND_WND);
+            header->syn = 1;
+            chitcpd_send_tcp_packet(si, entry, packet);
+            chitcpd_update_tcp_state(si, entry, SYN_SENT);
+            return CHITCP_OK;
         }
 
     }
