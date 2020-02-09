@@ -180,8 +180,8 @@ static int chitcpd_tcp_packet_arrival_handle(serverinfo_t *si, chisocketentry_t 
             chitcpd_tcp_packet_create(entry, packet, NULL, 0);
             send_header = TCP_PACKET_HEADER(packet);
             // <SEQ=ISS><ACK=RCV.NXT><CTL=SYN,ACK>
-            send_header->seq = iss
-            send_header->ack_seq = tcp_data->RCV_NEXT
+            send_header->seq = iss;
+            send_header->ack_seq = tcp_data->RCV_NXT;
             send_header->syn = 1;
             send_header->ack = 1;
             chitcpd_send_tcp_packet(si, entry, send_packet);
@@ -355,7 +355,39 @@ static int chitcpd_tcp_packet_arrival_handle(serverinfo_t *si, chisocketentry_t 
 //
 //     fifth, if neither of the SYN or RST bits is set then drop the
 //     segment and return.
-//
+
+    else
+    {
+        bool acceptable;
+        if (SEG_LEN(packet) == 0)
+        {
+            if (tcp_data->RCV_WND == 0)
+            {
+                acceptable = (SEG_SEQ(packet) == tcp_data->RCV_NXT);
+            }
+            else
+            {
+                acceptable = (tcp_data->RCV_NXT <= SEG_SEQ(packet) &&
+                              SEG_SEQ(packet) < (tcp_data->RCV_NXT + tcp_data->RCV_WND));
+            }
+
+        }
+        else  // SEG_LEN > 0
+        {
+            if (tcp_data->RCV_WND == 0)
+            {
+                acceptable = false;
+            }
+            else
+            {
+                acceptable = (tcp_data->RCV_NXT <= SEG_SEQ(packet) &&
+                               SEG_SEQ(packet) < (tcp_data->RCV_NXT + tcp_data->RCV_WND))
+                               ||
+                               tcp_data->RCV_NXT <=;
+            }
+        }
+    }
+
 //   Otherwise,
 //
 //   first check sequence number
@@ -737,7 +769,7 @@ int chitcpd_tcp_state_handle_SYN_RCVD(serverinfo_t *si, chisocketentry_t *entry,
 {
     if (event == PACKET_ARRIVAL)
     {
-        return chitcpd_tcp_packet_arrival_handle(si, entry)
+        return chitcpd_tcp_packet_arrival_handle(si, entry);
     }
     else if (event == TIMEOUT_RTX)
     {
@@ -753,7 +785,7 @@ int chitcpd_tcp_state_handle_SYN_SENT(serverinfo_t *si, chisocketentry_t *entry,
 {
     if (event == PACKET_ARRIVAL)
     {
-        return chitcpd_tcp_packet_arrival_handle(si, entry)
+        return chitcpd_tcp_packet_arrival_handle(si, entry);
     }
     else if (event == TIMEOUT_RTX)
     {
