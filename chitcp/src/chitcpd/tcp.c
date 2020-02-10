@@ -139,27 +139,7 @@ static int chitcpd_tcp_packet_arrival_handle(serverinfo_t *si, chisocketentry_t 
       chitcp_packet_list_pop_head(&tcp_data->pending_packets);
     }
     header = TCP_PACKET_HEADER(packet);
-//   SEGMENT ARRIVES
-//   If the state is CLOSED (i.e., TCB does not exist) then
-//
-//     all data in the incoming segment is discarded.  An incoming
-//     segment containing a RST is discarded.  An incoming segment not
-//     containing a RST causes a RST to be sent in response.  The
-//     acknowledgment and sequence field values are selected to make the
-//     reset sequence acceptable to the TCP that sent the offending
-//     segment.
-//
-//     If the ACK bit is off, sequence number zero is used,
-//
-//       <SEQ=0><ACK=SEG.SEQ+SEG.LEN><CTL=RST,ACK>
-//
-//     If the ACK bit is on,
-//
-//       <SEQ=SEG.ACK><CTL=RST>
-//
-//     Return.
-//
-//   If the state is LISTEN then
+
     if (entry->tcp_state == CLOSED)
     {
         return 0;
@@ -198,63 +178,7 @@ static int chitcpd_tcp_packet_arrival_handle(serverinfo_t *si, chisocketentry_t 
             return 0;
         }
     }
-//
-//     first check for an RST
-//
-//       An incoming RST should be ignored.  Return.
-//
-//     second check for an ACK
-//
-//       Any acknowledgment is bad if it arrives on a connection still in
-//       the LISTEN state.  An acceptable reset segment should be formed
-//       for any arriving ACK-bearing segment.  The RST should be
-//       formatted as follows:
-//
-//         <SEQ=SEG.ACK><CTL=RST>
-//
-//       Return.
-//
-//     third check for a SYN
-//
-//       If the SYN bit is set, check the security.  If the
-//       security/compartment on the incoming segment does not exactly
-//       match the security/compartment in the TCB then send a reset and
-//       return.
-//
-//         <SEQ=SEG.ACK><CTL=RST>
-//
-//       If the SEG.PRC is greater than the TCB.PRC then if allowed by
-//       the user and the system set TCB.PRC<-SEG.PRC, if not allowed
-//       send a reset and return.
-//
-//         <SEQ=SEG.ACK><CTL=RST>
-//
-//       If the SEG.PRC is less than the TCB.PRC then continue.
-//
-//       Set RCV.NXT to SEG.SEQ+1, IRS is set to SEG.SEQ and any other
-//       control or text should be queued for processing later.  ISS
-//       should be selected and a SYN segment sent of the form:
-//
-//         <SEQ=ISS><ACK=RCV.NXT><CTL=SYN,ACK>
-//
-//       SND.NXT is set to ISS+1 and SND.UNA to ISS.  The connection
-//       state should be changed to SYN-RECEIVED.  Note that any other
-//       incoming control or data (combined with SYN) will be processed
-//       in the SYN-RECEIVED state, but processing of SYN and ACK should
-//       not be repeated.  If the listen was not fully specified (i.e.,
-//       the foreign socket was not fully specified), then the
-//       unspecified fields should be filled in now.
-//
-//     fourth other text or control
-//
-//       Any other control or text-bearing segment (not containing SYN)
-//       must have an ACK and thus would be discarded by the ACK
-//       processing.  An incoming RST segment could not be valid, since
-//       it could not have been sent in response to anything sent by this
-//       incarnation of the connection.  So you are unlikely to get here,
-//       but if you do, drop the segment, and return.
-
-    if (entry->tcp_state == SYN_SENT)
+    else if (entry->tcp_state == SYN_SENT)
     {
         if (header->ack)
         {
@@ -312,396 +236,226 @@ static int chitcpd_tcp_packet_arrival_handle(serverinfo_t *si, chisocketentry_t 
             return CHITCP_OK;
         }
     }
-//   If the state is SYN-SENT then
-//
-//     first check the ACK bit
-//
-//       If the ACK bit is set
-//
-//         If SEG.ACK =< ISS, or SEG.ACK > SND.NXT, send a reset (unless
-//         the RST bit is set, if so drop the segment and return)
-//
-//           <SEQ=SEG.ACK><CTL=RST>
-//
-//         and discard the segment.  Return.
-//
-//         If SND.UNA =< SEG.ACK =< SND.NXT then the ACK is acceptable.
-//
-//     second check the RST bit
-//
-//       If the RST bit is set
-//
-//         If the ACK was acceptable then signal the user "error:
-//         connection reset", drop the segment, enter CLOSED state,
-//         delete TCB, and return.  Otherwise (no ACK) drop the segment
-//         and return.
-//
-//     third check the security and precedence
-//
-//       If the security/compartment in the segment does not exactly
-//       match the security/compartment in the TCB, send a reset
-//
-//         If there is an ACK
-//
-//           <SEQ=SEG.ACK><CTL=RST>
-//
-//         Otherwise
-//
-//           <SEQ=0><ACK=SEG.SEQ+SEG.LEN><CTL=RST,ACK>
-//
-//       If there is an ACK
-//
-//         The precedence in the segment must match the precedence in the
-//         TCB, if not, send a reset
-//
-//           <SEQ=SEG.ACK><CTL=RST>
-//
-//       If there is no ACK
-//
-//         If the precedence in the segment is higher than the precedence
-//         in the TCB then if allowed by the user and the system raise
-//         the precedence in the TCB to that in the segment, if not
-//         allowed to raise the prec then send a reset.
-//
-//           <SEQ=0><ACK=SEG.SEQ+SEG.LEN><CTL=RST,ACK>
-//
-//         If the precedence in the segment is lower than the precedence
-//         in the TCB continue.
-//
-//       If a reset was sent, discard the segment and return.
-//
-//     fourth check the SYN bit
-//
-//       This step should be reached only if the ACK is ok, or there is
-//       no ACK, and it the segment did not contain a RST.
-//
-//       If the SYN bit is on and the security/compartment and precedence
-//       are acceptable then, RCV.NXT is set to SEG.SEQ+1, IRS is set to
-//       SEG.SEQ.  SND.UNA should be advanced to equal SEG.ACK (if there
-//       is an ACK), and any segments on the retransmission queue which
-//       are thereby acknowledged should be removed.
-//
-//       If SND.UNA > ISS (our SYN has been ACKed), change the connection
-//       state to ESTABLISHED, form an ACK segment
-//
-//         <SEQ=SND.NXT><ACK=RCV.NXT><CTL=ACK>
-//
-//       and send it.  Data or controls which were queued for
-//       transmission may be included.  If there are other controls or
-//       text in the segment then continue processing at the sixth step
-//       below where the URG bit is checked, otherwise return.
-//
-//       Otherwise enter SYN-RECEIVED, form a SYN,ACK segment
-//
-//         <SEQ=ISS><ACK=RCV.NXT><CTL=SYN,ACK>
-//
-//       and send it.  If there are other controls or text in the
-//       segment, queue them for processing after the ESTABLISHED state
-//       has been reached, return.
-//
-//     fifth, if neither of the SYN or RST bits is set then drop the
-//     segment and return.
-
-    // else
-    // {
-    //     bool acceptable;
-    //     if (SEG_LEN(packet) == 0)
-    //     {
-    //         if (tcp_data->RCV_WND == 0)
-    //         {
-    //             acceptable = (SEG_SEQ(packet) == tcp_data->RCV_NXT);
-    //         }
-    //         else
-    //         {
-    //             acceptable = (tcp_data->RCV_NXT <= SEG_SEQ(packet) &&
-    //                           SEG_SEQ(packet) < (tcp_data->RCV_NXT + tcp_data->RCV_WND));
-    //         }
-    //
-    //     }
-    //     else  // SEG_LEN > 0
-    //     {
-    //         if (tcp_data->RCV_WND == 0)
-    //         {
-    //             acceptable = false;
-    //         }
-    //         else
-    //         {
-    //             acceptable = (tcp_data->RCV_NXT <= SEG_SEQ(packet) &&
-    //                            SEG_SEQ(packet) < (tcp_data->RCV_NXT + tcp_data->RCV_WND))
-    //                            ||
-    //                            tcp_data->RCV_NXT <=;
-    //         }
-    //     }
-    // }
-
-//   Otherwise,
-//
-//   first check sequence number
-//
-//     SYN-RECEIVED STATE
-//     ESTABLISHED STATE
-//     FIN-WAIT-1 STATE
-//     FIN-WAIT-2 STATE
-//     CLOSE-WAIT STATE
-//     CLOSING STATE
-//     LAST-ACK STATE
-//     TIME-WAIT STATE
-//
-//       Segments are processed in sequence.  Initial tests on arrival
-//       are used to discard old duplicates, but further processing is
-//       done in SEG.SEQ order.  If a segment's contents straddle the
-//       boundary between old and new, only the new parts should be
-//       processed.
-//
-//       There are four cases for the acceptability test for an incoming
-//       segment:
-//
-//       Segment Receive  Test
-//       Length  Window
-//       ------- -------  -------------------------------------------
-//
-//          0       0     SEG.SEQ = RCV.NXT
-//
-//          0      >0     RCV.NXT =< SEG.SEQ < RCV.NXT+RCV.WND
-//
-//         >0       0     not acceptable
-//
-//         >0      >0     RCV.NXT =< SEG.SEQ < RCV.NXT+RCV.WND
-//                     or RCV.NXT =< SEG.SEQ+SEG.LEN-1 < RCV.NXT+RCV.WND
-//
-//       If the RCV.WND is zero, no segments will be acceptable, but
-//       special allowance should be made to accept valid ACKs, URGs and
-//       RSTs.
-//
-//       If an incoming segment is not acceptable, an acknowledgment
-//       should be sent in reply (unless the RST bit is set, if so drop
-//       the segment and return):
-//
-//         <SEQ=SND.NXT><ACK=RCV.NXT><CTL=ACK>
-//
-//       After sending the acknowledgment, drop the unacceptable segment
-//       and return.
-//
-//       In the following it is assumed that the segment is the idealized
-//       segment that begins at RCV.NXT and does not exceed the window.
-//       One could tailor actual segments to fit this assumption by
-//       trimming off any portions that lie outside the window (including
-//       SYN and FIN), and only processing further if the segment then
-//       begins at RCV.NXT.  Segments with higher begining sequence
-//       numbers may be held for later processing.
-//
-//   second check the RST bit,
-//
-//     SYN-RECEIVED STATE
-//
-//       If the RST bit is set
-//
-//         If this connection was initiated with a passive OPEN (i.e.,
-//         came from the LISTEN state), then return this connection to
-//         LISTEN state and return.  The user need not be informed.  If
-//         this connection was initiated with an active OPEN (i.e., came
-//         from SYN-SENT state) then the connection was refused, signal
-//         the user "connection refused".  In either case, all segments
-//         on the retransmission queue should be removed.  And in the
-//         active OPEN case, enter the CLOSED state and delete the TCB,
-//         and return.
-//
-//     ESTABLISHED
-//     FIN-WAIT-1
-//     FIN-WAIT-2
-//     CLOSE-WAIT
-//
-//       If the RST bit is set then, any outstanding RECEIVEs and SEND
-//       should receive "reset" responses.  All segment queues should be
-//       flushed.  Users should also receive an unsolicited general
-//       "connection reset" signal.  Enter the CLOSED state, delete the
-//       TCB, and return.
-//
-//     CLOSING STATE
-//     LAST-ACK STATE
-//     TIME-WAIT
-//
-//       If the RST bit is set then, enter the CLOSED state, delete the
-//       TCB, and return.
-//   third check security and precedence
-//
-//     SYN-RECEIVED
-//
-//       If the security/compartment and precedence in the segment do not
-//       exactly match the security/compartment and precedence in the TCB
-//       then send a reset, and return.
-//
-//     ESTABLISHED STATE
-//
-//       If the security/compartment and precedence in the segment do not
-//       exactly match the security/compartment and precedence in the TCB
-//       then send a reset, any outstanding RECEIVEs and SEND should
-//       receive "reset" responses.  All segment queues should be
-//       flushed.  Users should also receive an unsolicited general
-//       "connection reset" signal.  Enter the CLOSED state, delete the
-//       TCB, and return.
-//
-//     Note this check is placed following the sequence check to prevent
-//     a segment from an old connection between these ports with a
-//     different security or precedence from causing an abort of the
-//     current connection.
-//
-    if (header->syn)
+    else  // All other states
     {
-        if (entry->tcp_state == SYN_RCVD) // Add more states here later
+        /* Check acceptability */
+        bool acceptable;
+        if (SEG_LEN(packet) == 0)
         {
-            // What does it mean by "in the window"? When I tell it to close if
-            // there is a syn bit then this is incorrect.
-            // chitcpd_update_tcp_state(si, entry, CLOSED);
-            /*If the SYN is in the window it is an error, send a reset, any
-             * outstanding RECEIVEs and SEND should receive "reset" responses,
-             * all segment queues should be flushed, the user should also
-             * receive an unsolicited general "connection reset" signal, enter
-             * the CLOSED state, delete the TCB, and return.
-             */
-        }
-    }
-//   fourth, check the SYN bit,
-//
-//     SYN-RECEIVED
-//     ESTABLISHED STATE
-//     FIN-WAIT STATE-1
-//     FIN-WAIT STATE-2
-//     CLOSE-WAIT STATE
-//     CLOSING STATE
-//     LAST-ACK STATE
-//     TIME-WAIT STATE
-//
-//       If the SYN is in the window it is an error, send a reset, any
-//       outstanding RECEIVEs and SEND should receive "reset" responses,
-//       all segment queues should be flushed, the user should also
-//       receive an unsolicited general "connection reset" signal, enter
-//       the CLOSED state, delete the TCB, and return.
-//
-//       If the SYN is not in the window this step would not be reached
-//       and an ack would have been sent in the first step (sequence
-//       number check).
-
-    if (!header->ack)
-    {
-        return 0;
-    }
-    else
-    {
-        if (entry->tcp_state == SYN_RCVD)
-        {
-            if (tcp_data->SND_UNA <= SEG_ACK(packet) && SEG_ACK(packet) <=
-                                                              tcp_data->SND_NXT)
+            if (tcp_data->RCV_WND == 0)
             {
-                chitcpd_update_tcp_state(si, entry, ESTABLISHED);
+                acceptable = (SEG_SEQ(packet) == tcp_data->RCV_NXT);
+            }
+            else
+            {
+                acceptable = (tcp_data->RCV_NXT <= SEG_SEQ(packet) &&
+                              SEG_SEQ(packet) < (tcp_data->RCV_NXT + tcp_data->RCV_WND));
             }
         }
-        if (entry->tcp_state == ESTABLISHED)
+        else  // SEG_LEN > 0
         {
-            // Definitely more to do here after 3-way handshake
-            if (tcp_data->SND_UNA < SEG_ACK(packet) && SEG_ACK(packet) <=
-                                                              tcp_data->SND_NXT)
+            if (tcp_data->RCV_WND == 0)
             {
-                tcp_data->SND_UNA = SEG_ACK(packet);
+                acceptable = false;
+            }
+            else
+            {
+                int recv_end = tcp_data->RCV_NXT + tcp_data->RCV_WND;
+                int seq_end = SEG_SEQ(packet) + SEG_LEN(packet) - 1;
+                acceptable = (tcp_data->RCV_NXT <= SEG_SEQ(packet) && SEG_SEQ(packet) < recv_end) ||
+                             (tcp_data->RCV_NXT <= seq_end && seq_end < recv_end);
             }
         }
+
+        if (!acceptable)
+        {
+            // <SEQ=SND.NXT><ACK=RCV.NXT><CTL=ACK>
+            tcp_packet_t *send_packet = calloc(1, sizeof(tcp_packet_t));
+            tcphdr_t *send_header;
+            uint8_t payload = 0;
+            chitcpd_tcp_packet_create(entry, send_packet, &payload, 1);
+            send_header = TCP_PACKET_HEADER(send_packet);
+            send_header->seq = chitcpy_htonl(tcp_data->SND_NXT);
+            send_header->ack_seq = chitcp_htonl(tcp_data->RCV_NXT);
+            // send_header->win = chitcp_htons(tcp_data->SND_WND);
+            send_header->ack = 1;
+            chitcpd_send_tcp_packet(si, entry, send_packet);
+            // free(send_packet);
+            // Any further actions needed to "drop" unacceptable segments as specified in RFC??
+            return CHITCP_OK;
+        }
+        else  // Update TCB variables for acceptable segment
+        {
+            chilog(DEBUG, "RCV_NXT before packet is %s", tcp_data->RCV_NXT);
+            chilog(DEBUG, "RCV_WND before packet is %s", tcp_data->RCV_WND);
+            tcp_data->RCV_NXT += SEG_LEN(packet);
+            tcp_data->RCV_WND -= SEG_LEN(packet);
+            chilog(DEBUG, "RCV_NXT after packet is %s", tcp_data->RCV_NXT);
+            chilog(DEBUG, "RCV_WND after packet is %s", tcp_data->RCV_WND);
+        }
+
+        if (header->syn)
+        {
+            /* Should free TCB and return. It must be in the window,
+               because we just checked for acceptability above */
+               chilog(DEBUG, "SYN is in the window, delete TCB and return");
+               memset(tcp_data, 0, sizeof (tcp_data));
+               // Flush all segment queues here
+               chitcpd_update_tcp_state(si, entry, CLOSED);
+               return CHITCP_OK;
+        }
+
+        if (!header->ack)
+        {
+            return CHITCP_OK;
+        }
+        else  // Checking ACK field
+        {
+            if (entry->tcp_state == SYN_RCVD)
+            {
+                if (tcp_data->SND_UNA <= SEG_ACK(packet) && SEG_ACK(packet) <=
+                                                                tcp_data->SND_NXT)
+                {
+                    chitcpd_update_tcp_state(si, entry, ESTABLISHED);
+                }
+                else
+                {
+                    chilog(DEBUG, "seg_ack unacceptable, would send reset here if it were supported");
+                    return CHITCP_OK;
+                }
+            }
+            else if (entry->tcp_state == LAST_ACK)
+            {
+                /* The only thing that can arrive here is ACK of our FIN.
+                   Check that our FIN is acknowledged and if so, close connection */
+                 if (tcp_data->SND_UNA < SEG_ACK(packet))
+                 {
+                     memset(tcp_data, 0, sizeof (tcp_data));
+                     chitcpd_update_tcp_state(si, entry, CLOSED);
+                     return CHITCP_OK;
+                 }
+            }
+            else if (entry->tcp_state == TIME_WAIT)
+            {
+                /* The only thing that can arrive here is a retransmission of
+                   connection's FIN. Acknowledge it and restart timeout */
+                   chilog(DEBUG, "Updating RCV_NXT from retransmitted remote FIN");
+                   tcp_packet_t *send_packet = calloc(1, sizeof(tcp_packet_t));
+                   tcphdr_t *send_header;
+                   uint8_t payload = 0;
+                   chitcpd_tcp_packet_create(entry, send_packet, &payload, 1);
+                   send_header = TCP_PACKET_HEADER(send_packet);
+                   send_header->seq = chitcpy_htonl(tcp_data->SND_NXT);
+                   send_header->ack_seq = chitcp_htonl(tcp_data->RCV_NXT);
+                   // send_header->win = chitcp_htons(tcp_data->SND_WND);
+                   send_header->ack = 1;
+                   chitcpd_send_tcp_packet(si, entry, send_packet);
+
+                   // Restart the 2 MSL timeout here
+
+            }
+            else
+            {
+                /* All other possible processing of ACK field at minimum
+                   goes through ESTABLISHED processing: */
+
+                // Definitely more to do here after 3-way handshake
+                if (tcp_data->SND_UNA < SEG_ACK(packet) &&
+                      SEG_ACK(packet) <= tcp_data->SND_NXT)
+                {
+                    tcp_data->SND_UNA = SEG_ACK(packet);
+                    /* Need to remove segments in retransmission queue that
+                       are acknowledged as a result of this */
+
+
+                }
+                else if (SEG_ACK(packet) < tcp_data->SND_UNA)
+                {
+                    // Duplicate, can ignore
+                    chilog(DEBUG, "SEG_ACK < SND_UNA: duplicate that we can ignore");
+                }
+                else if (SEG_ACK(packet) > tcp_data->SND_UNA)
+                {
+                    // Remote is ACKing something not yet sent; so send an ACK and return
+                    chilog(DEBUG, "Remote is ACKing something not yet sent");
+                    tcp_packet_t *send_packet = calloc(1, sizeof(tcp_packet_t));
+                    tcphdr_t *send_header;
+                    uint8_t payload = 0;
+                    chitcpd_tcp_packet_create(entry, send_packet, &payload, 1);
+                    send_header = TCP_PACKET_HEADER(send_packet);
+                    send_header->seq = chitcpy_htonl(tcp_data->SND_NXT);
+                    send_header->ack_seq = chitcp_htonl(tcp_data->RCV_NXT);
+                    // send_header->win = chitcp_htons(tcp_data->SND_WND);
+                    send_header->ack = 1;
+                    chitcpd_send_tcp_packet(si, entry, send_packet);
+                    return CHITCP_OK;
+                }
+
+                // ....
+
+                /* Additional processing in addition to base required by all above */
+                if (entry->tcp_state == FIN_WAIT_1)
+                {
+                    // If our FIN is now acknowledged, enter FIN_WAIT_2 and continue processing
+                    chitcpd_update_tcp_state(si, entry, FIN_WAIT_2);
+                }
+                else if (entry->tcp_state == FIN_WAIT_2)
+                {
+                    /* If the retransmission queue is empty, the user's CLOSE
+                       can be acknowledged, but do not delete TCB */
+
+                }
+                else if (entry->tcp_state == CLOSING)
+                {
+                    /* If the ACK acknowledges our FIN, then enter the TIME_WAIT
+                       state, otherwise ignore the segment */
+                    // How to know if the ACK acknowledges our FIN specifically?
+
+                }
+
+            }
+        }
+
+        // Processing the segment text:
+        switch (entry->tcp_state)
+        {
+            case ESTABLISHED:
+            case FIN_WAIT_1:
+            case FIN_WAIT_2:
+                // ...
+                break;
+
+            case CLOSE_WAIT:
+            case CLOSING:
+            case LAST_ACK:
+            case TIME_WAIT:
+                // ...
+                break;
+            default:
+                break;
+        }
+
+        // Check FIN bit:
+        if (header->fin)
+        {
+            // Signal the user "connection closing"
+            // Return any pending RECEIVES with the same message
+            tcp_data->RCV_NXT = SEG_SEQ(packet) + 1;
+            switch (entry->tcp_state)
+            {
+                case SYN_RCVD:
+                case ESTABLISHED:
+                    break;
+                case FIN_WAIT_1:
+                    break;
+                case TIME_WAIT:
+                    break;
+                default: // Do Nothing
+                    break;
+        }
+        //
     }
-//   fifth check the ACK field,
-//
-//     if the ACK bit is off drop the segment and return
-//
-//     if the ACK bit is on
-//
-//       SYN-RECEIVED STATE
-//
-//         If SND.UNA =< SEG.ACK =< SND.NXT then enter ESTABLISHED state
-//         and continue processing.
-//
-//           If the segment acknowledgment is not acceptable, form a
-//           reset segment,
-//
-//             <SEQ=SEG.ACK><CTL=RST>
-//
-//           and send it.
-//
-//       ESTABLISHED STATE
-//
-//         If SND.UNA < SEG.ACK =< SND.NXT then, set SND.UNA <- SEG.ACK.
-//         Any segments on the retransmission queue which are thereby
-//         entirely acknowledged are removed.  Users should receive
-//         positive acknowledgments for buffers which have been SENT and
-//         fully acknowledged (i.e., SEND buffer should be returned with
-//         "ok" response).  If the ACK is a duplicate
-//         (SEG.ACK < SND.UNA), it can be ignored.  If the ACK acks
-//         something not yet sent (SEG.ACK > SND.NXT) then send an ACK,
-//         drop the segment, and return.
-//
-//         If SND.UNA < SEG.ACK =< SND.NXT, the send window should be
-//         updated.  If (SND.WL1 < SEG.SEQ or (SND.WL1 = SEG.SEQ and
-//         SND.WL2 =< SEG.ACK)), set SND.WND <- SEG.WND, set
-//         SND.WL1 <- SEG.SEQ, and set SND.WL2 <- SEG.ACK.
-//
-//         Note that SND.WND is an offset from SND.UNA, that SND.WL1
-//         records the sequence number of the last segment used to update
-//         SND.WND, and that SND.WL2 records the acknowledgment number of
-//         the last segment used to update SND.WND.  The check here
-//         prevents using old segments to update the window.
-//
-//       FIN-WAIT-1 STATE
-//
-//         In addition to the processing for the ESTABLISHED state, if
-//         our FIN is now acknowledged then enter FIN-WAIT-2 and continue
-//         processing in that state.
-//
-//       FIN-WAIT-2 STATE
-//
-//         In addition to the processing for the ESTABLISHED state, if
-//         the retransmission queue is empty, the user's CLOSE can be
-//         acknowledged ("ok") but do not delete the TCB.
-//
-//       CLOSE-WAIT STATE
-//
-//         Do the same processing as for the ESTABLISHED state.
-//
-//       CLOSING STATE
-//
-//         In addition to the processing for the ESTABLISHED state, if
-//         the ACK acknowledges our FIN then enter the TIME-WAIT state,
-//         otherwise ignore the segment.
-//
-//       LAST-ACK STATE
-//
-//         The only thing that can arrive in this state is an
-//         acknowledgment of our FIN.  If our FIN is now acknowledged,
-//         delete the TCB, enter the CLOSED state, and return.
-//
-//       TIME-WAIT STATE
-//
-//         The only thing that can arrive in this state is a
-//         retransmission of the remote FIN.  Acknowledge it, and restart
-//         the 2 MSL timeout.
-//
-//   sixth, check the URG bit,
-//
-//     ESTABLISHED STATE
-//     FIN-WAIT-1 STATE
-//     FIN-WAIT-2 STATE
-//
-//       If the URG bit is set, RCV.UP <- max(RCV.UP,SEG.UP), and signal
-//       the user that the remote side has urgent data if the urgent
-//       pointer (RCV.UP) is in advance of the data consumed.  If the
-//       user has already been signaled (or is still in the "urgent
-//       mode") for this continuous sequence of urgent data, do not
-//       signal the user again.
-//
-//     CLOSE-WAIT STATE
-//     CLOSING STATE
-//     LAST-ACK STATE
-//     TIME-WAIT
-//
-//       This should not occur, since a FIN has been received from the
-//       remote side.  Ignore the URG.
-//
+
 //   seventh, process the segment text,
 //
 //     ESTABLISHED STATE
