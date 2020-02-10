@@ -98,7 +98,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-
+#define BASE_RCV_WND 4096
 
 
 void tcp_data_init(serverinfo_t *si, chisocketentry_t *entry)
@@ -111,6 +111,8 @@ void tcp_data_init(serverinfo_t *si, chisocketentry_t *entry)
 
     /* Initialization of additional tcp_data_t fields,
      * and creation of retransmission thread, goes here */
+
+    tcp_data->RCV_WND = BASE_RCV_WND;
 
 }
 
@@ -156,6 +158,7 @@ static int chitcpd_tcp_packet_arrival_handle(serverinfo_t *si, chisocketentry_t 
             tcp_data->IRS = SEG_SEQ(packet);
             int iss = rand();
             tcp_data->ISS = iss;
+            tcp_data->SND_WND = SEG_WND(packet);
             tcp_packet_t *send_packet = calloc(1, sizeof(tcp_packet_t));
             tcphdr_t *send_header;
             uint8_t payload = 0;
@@ -191,6 +194,7 @@ static int chitcpd_tcp_packet_arrival_handle(serverinfo_t *si, chisocketentry_t 
         {
             tcp_data->RCV_NXT = SEG_SEQ(packet) + 1;
             tcp_data->IRS = SEG_SEQ(packet);
+            tcp_data->SND_WND = SEG_WND(packet);
             if (header->ack)
             {
                 tcp_data->SND_UNA = SEG_ACK(packet);
@@ -228,7 +232,8 @@ static int chitcpd_tcp_packet_arrival_handle(serverinfo_t *si, chisocketentry_t 
                 send_header->ack = 1;
                 chitcpd_send_tcp_packet(si, entry, send_packet);
                 // free(send_packet);
-                return CHITCP_OK;
+                return CHITCP_OK;                chilog(INFO, "HELLO");
+
             }
         }
         else
@@ -289,6 +294,7 @@ static int chitcpd_tcp_packet_arrival_handle(serverinfo_t *si, chisocketentry_t 
         {
             chilog(DEBUG, "RCV_NXT before packet is %s", tcp_data->RCV_NXT);
             chilog(DEBUG, "RCV_WND before packet is %s", tcp_data->RCV_WND);
+            tcp_data->SND_WND = SEG_WND(packet);
             tcp_data->RCV_NXT += SEG_LEN(packet);
             tcp_data->RCV_WND -= SEG_LEN(packet);
             chilog(DEBUG, "RCV_NXT after packet is %s", tcp_data->RCV_NXT);
@@ -314,6 +320,8 @@ static int chitcpd_tcp_packet_arrival_handle(serverinfo_t *si, chisocketentry_t 
         {
             if (entry->tcp_state == SYN_RCVD)
             {
+                chilog(INFO, "Quitting here?");
+                chilog(INFO, "SND_UNA is %d, SEG_ACK is %d SND_NXT is %d", tcp_data->SND_UNA, SEG_ACK(packet), tcp_data->SND_NXT);
                 if (tcp_data->SND_UNA <= SEG_ACK(packet) && SEG_ACK(packet) <=
                                                                 tcp_data->SND_NXT)
                 {
@@ -568,12 +576,12 @@ int chitcpd_tcp_state_handle_CLOSED(serverinfo_t *si, chisocketentry_t *entry, t
         {
             // Need to check that foreign socket is unspecified
             // ie, check struct sockaddr_storage remote_addr in chisocketentry??
-            tcp_data_init(si, entry);
+            // tcp_data_init(si, entry);
             int iss = rand();
             tcp_data->ISS = iss;
             tcp_data->SND_UNA = iss;
             tcp_data->SND_NXT = iss + 1;
-            tcp_data->SND_WND = 4096;
+            tcp_data->RCV_WND = 4096;
 
             tcp_packet_t *packet = calloc(1, sizeof(tcp_packet_t));
             tcphdr_t *header;
@@ -581,7 +589,7 @@ int chitcpd_tcp_state_handle_CLOSED(serverinfo_t *si, chisocketentry_t *entry, t
             chitcpd_tcp_packet_create(entry, packet, &payload, 1);
             header = TCP_PACKET_HEADER(packet);
             header->seq = chitcp_htonl(tcp_data->ISS);
-            header->win = chitcp_htons(tcp_data->SND_WND);
+            header->win = chitcp_htons(tcp_data->RCV_WND);
             header->syn = 1;
             chitcpd_send_tcp_packet(si, entry, packet);
             chitcpd_update_tcp_state(si, entry, SYN_SENT);
