@@ -238,6 +238,7 @@ static int chitcpd_tcp_packet_arrival_handle(serverinfo_t *si, chisocketentry_t 
     }
     else  // All other states
     {
+
         /* Check acceptability */
         bool acceptable;
         if (SEG_LEN(packet) == 0)
@@ -275,7 +276,7 @@ static int chitcpd_tcp_packet_arrival_handle(serverinfo_t *si, chisocketentry_t 
             uint8_t payload = 0;
             chitcpd_tcp_packet_create(entry, send_packet, &payload, 1);
             send_header = TCP_PACKET_HEADER(send_packet);
-            send_header->seq = chitcpy_htonl(tcp_data->SND_NXT);
+            send_header->seq = chitcp_htonl(tcp_data->SND_NXT);
             send_header->ack_seq = chitcp_htonl(tcp_data->RCV_NXT);
             // send_header->win = chitcp_htons(tcp_data->SND_WND);
             send_header->ack = 1;
@@ -345,7 +346,7 @@ static int chitcpd_tcp_packet_arrival_handle(serverinfo_t *si, chisocketentry_t 
                    uint8_t payload = 0;
                    chitcpd_tcp_packet_create(entry, send_packet, &payload, 1);
                    send_header = TCP_PACKET_HEADER(send_packet);
-                   send_header->seq = chitcpy_htonl(tcp_data->SND_NXT);
+                   send_header->seq = chitcp_htonl(tcp_data->SND_NXT);
                    send_header->ack_seq = chitcp_htonl(tcp_data->RCV_NXT);
                    // send_header->win = chitcp_htons(tcp_data->SND_WND);
                    send_header->ack = 1;
@@ -383,7 +384,7 @@ static int chitcpd_tcp_packet_arrival_handle(serverinfo_t *si, chisocketentry_t 
                     uint8_t payload = 0;
                     chitcpd_tcp_packet_create(entry, send_packet, &payload, 1);
                     send_header = TCP_PACKET_HEADER(send_packet);
-                    send_header->seq = chitcpy_htonl(tcp_data->SND_NXT);
+                    send_header->seq = chitcp_htonl(tcp_data->SND_NXT);
                     send_header->ack_seq = chitcp_htonl(tcp_data->RCV_NXT);
                     // send_header->win = chitcp_htons(tcp_data->SND_WND);
                     send_header->ack = 1;
@@ -438,6 +439,11 @@ static int chitcpd_tcp_packet_arrival_handle(serverinfo_t *si, chisocketentry_t 
         // Check FIN bit:
         if (header->fin)
         {
+            if (entry->tcp_state == CLOSED || entry->tcp_state == LISTEN ||
+                entry->tcp_state == SYN_SENT)
+            {
+                return 0;
+            }
             // Signal the user "connection closing"
             // Return any pending RECEIVES with the same message
             tcp_data->RCV_NXT = SEG_SEQ(packet) + 1;
@@ -452,6 +458,7 @@ static int chitcpd_tcp_packet_arrival_handle(serverinfo_t *si, chisocketentry_t 
                     break;
                 default: // Do Nothing
                     break;
+            }
         }
         //
     }
@@ -495,15 +502,6 @@ static int chitcpd_tcp_packet_arrival_handle(serverinfo_t *si, chisocketentry_t 
 //       This should not occur, since a FIN has been received from the
 //       remote side.  Ignore the segment text.
 
-    if (header->fin)
-    {
-        if (entry->tcp_state == CLOSED || entry->tcp_state == LISTEN ||
-            entry->tcp_state == SYN_SENT)
-        {
-            return 0;
-        }
-        /* More stuff to do after 3-way handshake working */
-    }
 //   eighth, check the FIN bit,
 //
 //     Do not process the FIN if the state is CLOSED, LISTEN or SYN-SENT
