@@ -325,6 +325,7 @@ static int chitcpd_tcp_packet_arrival_handle(serverinfo_t *si, chisocketentry_t 
         }
         else  // Checking ACK field
         {
+            bool becoming_established = false;
             if (entry->tcp_state == SYN_RCVD)
             {
                 chilog(INFO, "Quitting here?");
@@ -332,7 +333,8 @@ static int chitcpd_tcp_packet_arrival_handle(serverinfo_t *si, chisocketentry_t 
                 if (tcp_data->SND_UNA <= SEG_ACK(packet) && SEG_ACK(packet) <=
                                                                 tcp_data->SND_NXT)
                 {
-                    chitcpd_update_tcp_state(si, entry, ESTABLISHED);
+                    becoming_established = true;
+                    // chitcpd_update_tcp_state(si, entry, ESTABLISHED);
                 }
                 else
                 {
@@ -383,8 +385,6 @@ static int chitcpd_tcp_packet_arrival_handle(serverinfo_t *si, chisocketentry_t 
                     tcp_data->SND_UNA = SEG_ACK(packet);
                     /* Need to remove segments in retransmission queue that
                        are acknowledged as a result of this */
-
-
                 }
                 else if (SEG_ACK(packet) < tcp_data->SND_UNA)
                 {
@@ -408,6 +408,10 @@ static int chitcpd_tcp_packet_arrival_handle(serverinfo_t *si, chisocketentry_t 
                     return CHITCP_OK;
                 }
 
+                if (becoming_established)
+                {
+                    chitcpd_update_tcp_state(si, entry, ESTABLISHED);
+                }
                 // ....
 
                 /* Additional processing in addition to base required by all above */
