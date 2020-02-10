@@ -129,6 +129,7 @@ void tcp_data_free(serverinfo_t *si, chisocketentry_t *entry)
 
 static int chitcpd_tcp_packet_arrival_handle(serverinfo_t *si, chisocketentry_t *entry)
 {
+    chilog(DEBUG, "Packet Arrival Handler Reached");
     tcp_data_t *tcp_data = &entry->socket_state.active.tcp_data;
     tcp_packet_t *packet = NULL;
     tcphdr_t *header = NULL;
@@ -161,7 +162,7 @@ static int chitcpd_tcp_packet_arrival_handle(serverinfo_t *si, chisocketentry_t 
 //   If the state is LISTEN then
     if (entry->tcp_state == CLOSED)
     {
-
+        return 0;
     }
     else if (entry->tcp_state == LISTEN)
     {
@@ -177,15 +178,17 @@ static int chitcpd_tcp_packet_arrival_handle(serverinfo_t *si, chisocketentry_t 
             tcp_data->ISS = iss;
             tcp_packet_t *send_packet = calloc(1, sizeof(tcp_packet_t));
             tcphdr_t *send_header;
-            chitcpd_tcp_packet_create(entry, packet, NULL, 0);
-            send_header = TCP_PACKET_HEADER(packet);
+            uint8_t payload = 0;
+            chitcpd_tcp_packet_create(entry, send_packet, &payload, 1);
+            send_header = TCP_PACKET_HEADER(send_packet);
             // <SEQ=ISS><ACK=RCV.NXT><CTL=SYN,ACK>
-            send_header->seq = iss;
-            send_header->ack_seq = tcp_data->RCV_NXT;
+            send_header->seq = chitcp_htonl(iss);
+            send_header->ack_seq = chitcp_htonl(tcp_data->RCV_NXT);
+            // send_header->win = chitcp_htons(tcp_data->SND_WND);
             send_header->syn = 1;
             send_header->ack = 1;
             chitcpd_send_tcp_packet(si, entry, send_packet);
-            free(send_packet);
+            // free(send_packet);
             tcp_data->SND_UNA = iss;
             tcp_data->SND_NXT = iss + 1;
             chitcpd_update_tcp_state(si, entry, SYN_RCVD);
@@ -255,7 +258,7 @@ static int chitcpd_tcp_packet_arrival_handle(serverinfo_t *si, chisocketentry_t 
     {
         if (header->ack)
         {
-            if SEG_ACK(packet) <= tcp_data->ISS || SEG_ACK(packet) > tcp_data->SEND_NXT
+            if (SEG_ACK(packet) <= tcp_data->ISS || SEG_ACK(packet) > tcp_data->SND_NXT)
             {
                 return CHITCP_OK;
             }
@@ -275,29 +278,33 @@ static int chitcpd_tcp_packet_arrival_handle(serverinfo_t *si, chisocketentry_t 
                 chitcpd_update_tcp_state(si, entry, ESTABLISHED);
                 tcp_packet_t *send_packet = calloc(1, sizeof(tcp_packet_t));
                 tcphdr_t *send_header;
-                chitcpd_tcp_packet_create(entry, packet, NULL, 0);
-                send_header = TCP_PACKET_HEADER(packet);
+                uint8_t payload = 0;
+                chitcpd_tcp_packet_create(entry, send_packet, &payload, 1);
+                send_header = TCP_PACKET_HEADER(send_packet);
                 // <SEQ=SND.NXT><ACK=RCV.NXT><CTL=ACK>
-                send_header->seq = tcp_data->SND_NXT
-                send_header->ack_seq = tcp_data->RCV_NEXT
+                send_header->seq = chitcp_htonl(tcp_data->SND_NXT);
+                send_header->ack_seq = chitcp_htonl(tcp_data->RCV_NXT);
                 send_header->ack = 1;
                 chitcpd_send_tcp_packet(si, entry, send_packet);
-                free(send_packet);
+                // free(send_packet);
+                return CHITCP_OK;
             }
             else
             {
-                chitcpd_update_tcp_state(si, entry, SYN-RECEIVED);
+                chitcpd_update_tcp_state(si, entry, SYN_RCVD);
                 tcp_packet_t *send_packet = calloc(1, sizeof(tcp_packet_t));
                 tcphdr_t *send_header;
-                chitcpd_tcp_packet_create(entry, packet, NULL, 0);
-                send_header = TCP_PACKET_HEADER(packet);
+                uint8_t payload = 0;
+                chitcpd_tcp_packet_create(entry, send_packet, &payload, 1);
+                send_header = TCP_PACKET_HEADER(send_packet);
                 // <SEQ=ISS><ACK=RCV.NXT><CTL=SYN,ACK>
-                send_header->seq = tcp_data->ISS
-                send_header->ack_seq = tcp_data->RCV_NEXT
+                send_header->seq = chitcp_htonl(tcp_data->ISS);
+                send_header->ack_seq = chitcp_htonl(tcp_data->RCV_NXT);
                 send_header->syn = 1;
                 send_header->ack = 1;
                 chitcpd_send_tcp_packet(si, entry, send_packet);
-                free(send_packet);
+                // free(send_packet);
+                return CHITCP_OK;
             }
         }
         else
@@ -395,37 +402,37 @@ static int chitcpd_tcp_packet_arrival_handle(serverinfo_t *si, chisocketentry_t 
 //     fifth, if neither of the SYN or RST bits is set then drop the
 //     segment and return.
 
-    else
-    {
-        bool acceptable;
-        if (SEG_LEN(packet) == 0)
-        {
-            if (tcp_data->RCV_WND == 0)
-            {
-                acceptable = (SEG_SEQ(packet) == tcp_data->RCV_NXT);
-            }
-            else
-            {
-                acceptable = (tcp_data->RCV_NXT <= SEG_SEQ(packet) &&
-                              SEG_SEQ(packet) < (tcp_data->RCV_NXT + tcp_data->RCV_WND));
-            }
-
-        }
-        else  // SEG_LEN > 0
-        {
-            if (tcp_data->RCV_WND == 0)
-            {
-                acceptable = false;
-            }
-            else
-            {
-                acceptable = (tcp_data->RCV_NXT <= SEG_SEQ(packet) &&
-                               SEG_SEQ(packet) < (tcp_data->RCV_NXT + tcp_data->RCV_WND))
-                               ||
-                               tcp_data->RCV_NXT <=;
-            }
-        }
-    }
+    // else
+    // {
+    //     bool acceptable;
+    //     if (SEG_LEN(packet) == 0)
+    //     {
+    //         if (tcp_data->RCV_WND == 0)
+    //         {
+    //             acceptable = (SEG_SEQ(packet) == tcp_data->RCV_NXT);
+    //         }
+    //         else
+    //         {
+    //             acceptable = (tcp_data->RCV_NXT <= SEG_SEQ(packet) &&
+    //                           SEG_SEQ(packet) < (tcp_data->RCV_NXT + tcp_data->RCV_WND));
+    //         }
+    //
+    //     }
+    //     else  // SEG_LEN > 0
+    //     {
+    //         if (tcp_data->RCV_WND == 0)
+    //         {
+    //             acceptable = false;
+    //         }
+    //         else
+    //         {
+    //             acceptable = (tcp_data->RCV_NXT <= SEG_SEQ(packet) &&
+    //                            SEG_SEQ(packet) < (tcp_data->RCV_NXT + tcp_data->RCV_WND))
+    //                            ||
+    //                            tcp_data->RCV_NXT <=;
+    //         }
+    //     }
+    // }
 
 //   Otherwise,
 //
@@ -539,6 +546,21 @@ static int chitcpd_tcp_packet_arrival_handle(serverinfo_t *si, chisocketentry_t 
 //     different security or precedence from causing an abort of the
 //     current connection.
 //
+    if (header->syn)
+    {
+        if (entry->tcp_state == SYN_RCVD) // Add more states here later
+        {
+            // What does it mean by "in the window"? When I tell it to close if
+            // there is a syn bit then this is incorrect.
+            // chitcpd_update_tcp_state(si, entry, CLOSED);
+            /*If the SYN is in the window it is an error, send a reset, any
+             * outstanding RECEIVEs and SEND should receive "reset" responses,
+             * all segment queues should be flushed, the user should also
+             * receive an unsolicited general "connection reset" signal, enter
+             * the CLOSED state, delete the TCB, and return.
+             */
+        }
+    }
 //   fourth, check the SYN bit,
 //
 //     SYN-RECEIVED
@@ -559,7 +581,31 @@ static int chitcpd_tcp_packet_arrival_handle(serverinfo_t *si, chisocketentry_t 
 //       If the SYN is not in the window this step would not be reached
 //       and an ack would have been sent in the first step (sequence
 //       number check).
-//
+
+    if (!header->ack)
+    {
+        return 0;
+    }
+    else
+    {
+        if (entry->tcp_state == SYN_RCVD)
+        {
+            if (tcp_data->SND_UNA <= SEG_ACK(packet) && SEG_ACK(packet) <=
+                                                              tcp_data->SND_NXT)
+            {
+                chitcpd_update_tcp_state(si, entry, ESTABLISHED);
+            }
+        }
+        if (entry->tcp_state == ESTABLISHED)
+        {
+            // Definitely more to do here after 3-way handshake
+            if (tcp_data->SND_UNA < SEG_ACK(packet) && SEG_ACK(packet) <=
+                                                              tcp_data->SND_NXT)
+            {
+                tcp_data->SND_UNA = SEG_ACK(packet);
+            }
+        }
+    }
 //   fifth check the ACK field,
 //
 //     if the ACK bit is off drop the segment and return
@@ -694,7 +740,16 @@ static int chitcpd_tcp_packet_arrival_handle(serverinfo_t *si, chisocketentry_t 
 //
 //       This should not occur, since a FIN has been received from the
 //       remote side.  Ignore the segment text.
-//
+
+    if (header->fin)
+    {
+        if (entry->tcp_state == CLOSED || entry->tcp_state == LISTEN ||
+            entry->tcp_state == SYN_SENT)
+        {
+            return 0;
+        }
+        /* More stuff to do after 3-way handshake working */
+    }
 //   eighth, check the FIN bit,
 //
 //     Do not process the FIN if the state is CLOSED, LISTEN or SYN-SENT
