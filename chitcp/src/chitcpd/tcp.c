@@ -130,7 +130,11 @@ void tcp_data_free(serverinfo_t *si, chisocketentry_t *entry)
     /* Cleanup of additional tcp_data_t fields goes here */
 }
 
-
+static int
+format_and_send_packet(serverinfo_t *si, chisocketentry_t *entry, tcp_data_t *tcp_data, bool syn, bool fin)
+{
+    return 0;
+}
 
 
 static int chitcpd_tcp_packet_arrival_handle(serverinfo_t *si, chisocketentry_t *entry)
@@ -200,13 +204,9 @@ static int chitcpd_tcp_packet_arrival_handle(serverinfo_t *si, chisocketentry_t 
             tcp_data->RCV_NXT = SEG_SEQ(packet) + 1;
             tcp_data->IRS = SEG_SEQ(packet);
             tcp_data->SND_WND = SEG_WND(packet);
+            tcp_data->SND_UNA = SEG_ACK(packet);
             circular_buffer_set_seq_initial(&tcp_data->recv, tcp_data->IRS + 1);
-            if (header->ack)
-            {
-                tcp_data->SND_UNA = SEG_ACK(packet);
-                /* any segments on the retransmission queue which are thereby
-                 * acknowledged should be removed */
-            }
+
             if (tcp_data->SND_UNA > tcp_data->ISS)
             {
                 tcp_packet_t *send_packet = calloc(1, sizeof(tcp_packet_t));
@@ -238,9 +238,9 @@ static int chitcpd_tcp_packet_arrival_handle(serverinfo_t *si, chisocketentry_t 
                 send_header->win = chitcp_htons(tcp_data->SND_WND);
                 send_header->syn = 1;
                 send_header->ack = 1;
-                tcp_data->SND_NXT += 1;
                 chitcpd_send_tcp_packet(si, entry, send_packet);
                 chitcpd_update_tcp_state(si, entry, SYN_RCVD);
+                tcp_data->SND_NXT += 1;
                 return CHITCP_OK;
 
             }
@@ -297,10 +297,6 @@ static int chitcpd_tcp_packet_arrival_handle(serverinfo_t *si, chisocketentry_t 
             // Any further actions needed to "drop" unacceptable segments as specified in RFC??
             return CHITCP_OK;
         }
-        else  // Update TCB variables for acceptable segment
-        {
-            tcp_data->SND_WND = SEG_WND(packet);
-        }
 
         if (header->syn)
         {
@@ -323,6 +319,8 @@ static int chitcpd_tcp_packet_arrival_handle(serverinfo_t *si, chisocketentry_t 
                 if (tcp_data->SND_UNA <= SEG_ACK(packet) && SEG_ACK(packet) <=
                                                                 tcp_data->SND_NXT)
                 {
+                    tcp_data->SND_UNA = SEG_ACK(packet);
+                    tcp_data->SND_WND = SEG_WND(packet);
                     chitcpd_update_tcp_state(si, entry, ESTABLISHED);
                 }
                 else
@@ -365,15 +363,14 @@ static int chitcpd_tcp_packet_arrival_handle(serverinfo_t *si, chisocketentry_t 
                 /* All other possible processing of ACK field at minimum
                    goes through ESTABLISHED processing: */
 
-                // Definitely more to do here after 3-way handshake
                 if (tcp_data->SND_UNA < SEG_ACK(packet) &&
                       SEG_ACK(packet) <= tcp_data->SND_NXT)
                 {
+                  /* Need to remove segments in retransmission queue that
+                     are acknowledged as a result of this: */
                     tcp_data->SND_UNA = SEG_ACK(packet);
-                    /* Need to remove segments in retransmission queue that
-                       are acknowledged as a result of this */
 
-
+                    tcp_data->SND_WND = SEG_WND(packet);
                 }
                 else if (SEG_ACK(packet) < tcp_data->SND_UNA)
                 {
@@ -582,7 +579,7 @@ int chitcpd_tcp_state_handle_ESTABLISHED(serverinfo_t *si, chisocketentry_t *ent
     tcp_data_t *tcp_data = &entry->socket_state.active.tcp_data;
     if (event == APPLICATION_SEND)
     {
-       uint8_t *data_to_send[MSS];
+       uint8_t data_to_send[MSS];
        uint32_t len = MSS;
        while (tcp_data->SND_WND != 0)
        {
