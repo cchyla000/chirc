@@ -151,7 +151,7 @@ format_and_send_packet(serverinfo_t *si, chisocketentry_t *entry, tcp_data_t *tc
         send_header->fin = 1;
     }
     chitcpd_send_tcp_packet(si, entry, send_packet);
-
+    free(send_packet);
     return 0;
 
 }
@@ -542,7 +542,7 @@ int chitcpd_tcp_state_handle_ESTABLISHED(serverinfo_t *si, chisocketentry_t *ent
     {
        uint8_t data_to_send[MSS];
        uint32_t len = MSS;
-       while (tcp_data->SND_WND != 0)
+       while (circular_buffer_count(&tcp_data->send) != 0)
        {
           len = MIN(tcp_data->SND_WND, MSS);
           int nbytes = circular_buffer_read(&tcp_data->send, data_to_send, len, false);
@@ -550,6 +550,8 @@ int chitcpd_tcp_state_handle_ESTABLISHED(serverinfo_t *si, chisocketentry_t *ent
           {
               tcp_data->SND_WND -= nbytes;
               /* create and send packet of data */
+              format_and_send_packet(si, entry, tcp_data, data_to_send, len, false, false);
+              tcp_data->SND_NXT += nbytes;
           }
           else
           {
@@ -567,7 +569,27 @@ int chitcpd_tcp_state_handle_ESTABLISHED(serverinfo_t *si, chisocketentry_t *ent
     }
     else if (event == APPLICATION_CLOSE)
     {
-        /* Your code goes here */
+        chilog(INFO, "In handle ESTABLISHED handle APPLICATION_CLOSE");
+        uint8_t data_to_send[MSS];
+        uint32_t len = MSS;
+        while (circular_buffer_count(&tcp_data->send) != 0)
+        {
+           len = MIN(tcp_data->SND_WND, MSS);
+           int nbytes = circular_buffer_read(&tcp_data->send, data_to_send, len, false);
+           if (nbytes)
+           {
+               tcp_data->SND_WND -= nbytes;
+               /* create and send packet of data */
+               format_and_send_packet(si, entry, tcp_data, data_to_send, len, false, true);
+               tcp_data->SND_NXT += nbytes;
+           }
+           else
+           {
+               break;
+           }
+        }
+        chilog(INFO, "Out of while loop");
+        format_and_send_packet(si, entry, tcp_data, NULL, 0, false, true);
     }
     else if (event == TIMEOUT_RTX)
     {
@@ -623,9 +645,32 @@ int chitcpd_tcp_state_handle_FIN_WAIT_2(serverinfo_t *si, chisocketentry_t *entr
 
 int chitcpd_tcp_state_handle_CLOSE_WAIT(serverinfo_t *si, chisocketentry_t *entry, tcp_event_type_t event)
 {
+
+    tcp_data_t *tcp_data = &entry->socket_state.active.tcp_data;
     if (event == APPLICATION_CLOSE)
     {
-        /* Your code goes here */
+        chilog(INFO, "In handle CLOSE_WAIT handle APPLICATION_CLOSE");
+        uint8_t data_to_send[MSS];
+        uint32_t len = MSS;
+        while (circular_buffer_count(&tcp_data->send) != 0)
+        {
+           len = MIN(tcp_data->SND_WND, MSS);
+           int nbytes = circular_buffer_read(&tcp_data->send, data_to_send, len, false);
+           if (nbytes)
+           {
+               tcp_data->SND_WND -= nbytes;
+               /* create and send packet of data */
+               format_and_send_packet(si, entry, tcp_data, data_to_send, len, false, true);
+               tcp_data->SND_NXT += nbytes;
+           }
+           else
+           {
+               break;
+           }
+        }
+        chilog(INFO, "sending fin packet");
+        format_and_send_packet(si, entry, tcp_data, NULL, 0, false, true);
+
     }
     else if (event == PACKET_ARRIVAL)
     {
