@@ -140,7 +140,7 @@ format_and_send_packet(serverinfo_t *si, chisocketentry_t *entry, tcp_data_t *tc
     send_header = TCP_PACKET_HEADER(send_packet);
     send_header->seq = chitcp_htonl(tcp_data->SND_NXT);
     send_header->ack_seq = chitcp_htonl(tcp_data->RCV_NXT);
-    send_header->win = chitcp_htons(tcp_data->SND_WND);
+    send_header->win = chitcp_htons(tcp_data->RCV_WND);
     send_header->ack = 1;
     if (syn)
     {
@@ -156,6 +156,31 @@ format_and_send_packet(serverinfo_t *si, chisocketentry_t *entry, tcp_data_t *tc
 
 }
 
+static int check_and_send_from_buffer(serverinfo_t *si, chisocketentry_t *entry)
+{
+    tcp_data_t *tcp_data = &entry->socket_state.active.tcp_data;
+    uint8_t data_to_send[MSS];
+    uint32_t len = MSS;
+    int nbytes;
+    while (circular_buffer_count(&tcp_data->send) != 0 && tcp_data->SND_WND != 0)
+    {
+        len = MIN(tcp_data->SND_WND, MSS);
+        chilog(DEBUG, "Length of amount to read: %i", len);
+        if (len)
+        {
+            nbytes = circular_buffer_read(&tcp_data->send, data_to_send, len, true);
+            tcp_data->SND_WND -= nbytes;
+            /* create and send packet of data */
+            format_and_send_packet(si, entry, tcp_data, data_to_send, nbytes, false, false);
+            tcp_data->SND_NXT += nbytes;
+        }
+        else
+        {
+            break;
+        }
+    }
+    return CHITCP_OK;
+}
 
 static int chitcpd_tcp_packet_arrival_handle(serverinfo_t *si, chisocketentry_t *entry)
 {
@@ -336,8 +361,8 @@ static int chitcpd_tcp_packet_arrival_handle(serverinfo_t *si, chisocketentry_t 
                   /* Need to remove segments in retransmission queue that
                      are acknowledged as a result of this: */
                     tcp_data->SND_UNA = SEG_ACK(packet);
-
                     tcp_data->SND_WND = SEG_WND(packet);
+                    check_and_send_from_buffer(si, entry);
                 }
                 else if (SEG_ACK(packet) < tcp_data->SND_UNA)
                 {
@@ -547,24 +572,7 @@ int chitcpd_tcp_state_handle_ESTABLISHED(serverinfo_t *si, chisocketentry_t *ent
     tcp_data_t *tcp_data = &entry->socket_state.active.tcp_data;
     if (event == APPLICATION_SEND)
     {
-       uint8_t data_to_send[MSS];
-       uint32_t len = MSS;
-       while (circular_buffer_count(&tcp_data->send) != 0)
-       {
-          len = MIN(tcp_data->SND_WND, MSS);
-          int nbytes = circular_buffer_read(&tcp_data->send, data_to_send, len, false);
-          if (nbytes)
-          {
-              tcp_data->SND_WND -= nbytes;
-              /* create and send packet of data */
-              format_and_send_packet(si, entry, tcp_data, data_to_send, len, false, false);
-              tcp_data->SND_NXT += nbytes;
-          }
-          else
-          {
-              break;
-          }
-       }
+       check_and_send_from_buffer(si, entry);
     }
     else if (event == PACKET_ARRIVAL)
     {
@@ -572,29 +580,12 @@ int chitcpd_tcp_state_handle_ESTABLISHED(serverinfo_t *si, chisocketentry_t *ent
     }
     else if (event == APPLICATION_RECEIVE)
     {
-        /* Your code goes here */
+        tcp_data->RCV_WND = circular_buffer_available(&tcp_data->recv);
     }
     else if (event == APPLICATION_CLOSE)
     {
         chilog(INFO, "In handle ESTABLISHED handle APPLICATION_CLOSE");
-        uint8_t data_to_send[MSS];
-        uint32_t len = MSS;
-        while (circular_buffer_count(&tcp_data->send) != 0)
-        {
-           len = MIN(tcp_data->SND_WND, MSS);
-           int nbytes = circular_buffer_read(&tcp_data->send, data_to_send, len, false);
-           if (nbytes)
-           {
-               tcp_data->SND_WND -= nbytes;
-               /* create and send packet of data */
-               format_and_send_packet(si, entry, tcp_data, data_to_send, len, false, true);
-               tcp_data->SND_NXT += nbytes;
-           }
-           else
-           {
-               break;
-           }
-        }
+        check_and_send_from_buffer(si, event);
         chilog(INFO, "Out of while loop");
         format_and_send_packet(si, entry, tcp_data, NULL, 0, false, true);
         tcp_data->SND_NXT += 1;
@@ -660,24 +651,7 @@ int chitcpd_tcp_state_handle_CLOSE_WAIT(serverinfo_t *si, chisocketentry_t *entr
     if (event == APPLICATION_CLOSE)
     {
         chilog(INFO, "In handle CLOSE_WAIT handle APPLICATION_CLOSE");
-        uint8_t data_to_send[MSS];
-        uint32_t len = MSS;
-        while (circular_buffer_count(&tcp_data->send) != 0)
-        {
-           len = MIN(tcp_data->SND_WND, MSS);
-           int nbytes = circular_buffer_read(&tcp_data->send, data_to_send, len, false);
-           if (nbytes)
-           {
-               tcp_data->SND_WND -= nbytes;
-               /* create and send packet of data */
-               format_and_send_packet(si, entry, tcp_data, data_to_send, len, false, true);
-               tcp_data->SND_NXT += nbytes;
-           }
-           else
-           {
-               break;
-           }
-        }
+        check_and_send_from_buffer(si, event);
         chilog(INFO, "sending fin packet");
         format_and_send_packet(si, entry, tcp_data, NULL, 0, false, true);
         tcp_data->SND_NXT += 1;
