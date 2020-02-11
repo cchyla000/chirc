@@ -99,6 +99,7 @@
 #include <string.h>
 
 #define BASE_RCV_WND 4096
+#define MSS 536
 
 
 void tcp_data_init(serverinfo_t *si, chisocketentry_t *entry)
@@ -578,9 +579,25 @@ int chitcpd_tcp_state_handle_SYN_SENT(serverinfo_t *si, chisocketentry_t *entry,
 
 int chitcpd_tcp_state_handle_ESTABLISHED(serverinfo_t *si, chisocketentry_t *entry, tcp_event_type_t event)
 {
+    tcp_data_t *tcp_data = &entry->socket_state.active.tcp_data;
     if (event == APPLICATION_SEND)
     {
-        /* Your code goes here */
+       uint8_t *data_to_send[MSS];
+       uint32_t len = MSS;
+       while (tcp_data->SND_WND != 0)
+       {
+          len = MIN(tcp_data->SND_WND, MSS);
+          int nbytes = circular_buffer_read(&tcp_data->send, data_to_send, len, false);
+          if (nbytes)
+          {
+              tcp_data->SND_WND -= nbytes;
+              /* create and send packet of data */
+          }
+          else
+          {
+              break;
+          }
+       }
     }
     else if (event == PACKET_ARRIVAL)
     {
