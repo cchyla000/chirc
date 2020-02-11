@@ -129,6 +129,9 @@ void tcp_data_free(serverinfo_t *si, chisocketentry_t *entry)
     /* Cleanup of additional tcp_data_t fields goes here */
 }
 
+
+
+
 static int chitcpd_tcp_packet_arrival_handle(serverinfo_t *si, chisocketentry_t *entry)
 {
     chilog(DEBUG, "Packet Arrival Handler Reached");
@@ -141,7 +144,6 @@ static int chitcpd_tcp_packet_arrival_handle(serverinfo_t *si, chisocketentry_t 
       chitcp_packet_list_pop_head(&tcp_data->pending_packets);
     }
     header = TCP_PACKET_HEADER(packet);
-    chilog(DEBUG, "1");
     if (entry->tcp_state == CLOSED)
     {
         return 0;
@@ -154,12 +156,13 @@ static int chitcpd_tcp_packet_arrival_handle(serverinfo_t *si, chisocketentry_t 
         }
         if (header->syn)
         {
-              chilog(DEBUG, "2");
             tcp_data->RCV_NXT = SEG_SEQ(packet) + 1;
             tcp_data->IRS = SEG_SEQ(packet);
             int iss = rand() * 1000;
             tcp_data->ISS = iss;
             tcp_data->SND_WND = SEG_WND(packet);
+            circular_buffer_set_seq_initial(&tcp_data->recv, tcp_data->IRS + 1);
+            circular_buffer_set_seq_initial(&tcp_data->send, iss + 1);
             tcp_packet_t *send_packet = calloc(1, sizeof(tcp_packet_t));
             tcphdr_t *send_header;
             uint8_t payload = 0;
@@ -193,10 +196,10 @@ static int chitcpd_tcp_packet_arrival_handle(serverinfo_t *si, chisocketentry_t 
         }
         if (header->syn)
         {
-              chilog(DEBUG, "3");
             tcp_data->RCV_NXT = SEG_SEQ(packet) + 1;
             tcp_data->IRS = SEG_SEQ(packet);
             tcp_data->SND_WND = SEG_WND(packet);
+            circular_buffer_set_seq_initial(&tcp_data->recv, tcp_data->IRS + 1);
             if (header->ack)
             {
                 tcp_data->SND_UNA = SEG_ACK(packet);
@@ -205,7 +208,6 @@ static int chitcpd_tcp_packet_arrival_handle(serverinfo_t *si, chisocketentry_t 
             }
             if (tcp_data->SND_UNA > tcp_data->ISS)
             {
-                  chilog(DEBUG, "4");
                 tcp_packet_t *send_packet = calloc(1, sizeof(tcp_packet_t));
                 tcphdr_t *send_header;
                 uint8_t payload = 0;
@@ -217,13 +219,13 @@ static int chitcpd_tcp_packet_arrival_handle(serverinfo_t *si, chisocketentry_t 
                 send_header->ack = 1;
                 send_header->win = chitcp_htons(tcp_data->SND_WND);
 
+
                 chitcpd_send_tcp_packet(si, entry, send_packet);
                 chitcpd_update_tcp_state(si, entry, ESTABLISHED);
                 return CHITCP_OK;
             }
             else
             {
-                  chilog(DEBUG, "5");
                 tcp_packet_t *send_packet = calloc(1, sizeof(tcp_packet_t));
                 tcphdr_t *send_header;
                 uint8_t payload = 0;
@@ -244,13 +246,11 @@ static int chitcpd_tcp_packet_arrival_handle(serverinfo_t *si, chisocketentry_t 
         }
         else
         {
-              chilog(DEBUG, "6");
             return CHITCP_OK;
         }
     }
     else  // All other states
     {
-    chilog(DEBUG, "7");
         /* Check acceptability */
         bool acceptable;
         if (SEG_LEN(packet) == 0)
@@ -279,7 +279,6 @@ static int chitcpd_tcp_packet_arrival_handle(serverinfo_t *si, chisocketentry_t 
                              (tcp_data->RCV_NXT <= seq_end && seq_end < recv_end);
             }
         }
-
         if (!acceptable)
         {
             // <SEQ=SND.NXT><ACK=RCV.NXT><CTL=ACK>
@@ -299,20 +298,13 @@ static int chitcpd_tcp_packet_arrival_handle(serverinfo_t *si, chisocketentry_t 
         }
         else  // Update TCB variables for acceptable segment
         {
-            chilog(DEBUG, "RCV_NXT before packet is %s", tcp_data->RCV_NXT);
-            chilog(DEBUG, "RCV_WND before packet is %s", tcp_data->RCV_WND);
             tcp_data->SND_WND = SEG_WND(packet);
-            tcp_data->RCV_NXT += SEG_LEN(packet);
-            tcp_data->RCV_WND -= SEG_LEN(packet);
-            chilog(DEBUG, "RCV_NXT after packet is %s", tcp_data->RCV_NXT);
-            chilog(DEBUG, "RCV_WND after packet is %s", tcp_data->RCV_WND);
         }
 
         if (header->syn)
         {
             /* Should free TCB and return. It must be in the window,
                because we just checked for acceptability above */
-               chilog(DEBUG, "SYN is in the window, delete TCB and return");
                memset(tcp_data, 0, sizeof (tcp_data));
                // Flush all segment queues here
                chitcpd_update_tcp_state(si, entry, CLOSED);
@@ -325,20 +317,15 @@ static int chitcpd_tcp_packet_arrival_handle(serverinfo_t *si, chisocketentry_t 
         }
         else  // Checking ACK field
         {
-            bool becoming_established = false;
             if (entry->tcp_state == SYN_RCVD)
             {
-                chilog(INFO, "Quitting here?");
-                chilog(INFO, "SND_UNA is %d, SEG_ACK is %d SND_NXT is %d", tcp_data->SND_UNA, SEG_ACK(packet), tcp_data->SND_NXT);
                 if (tcp_data->SND_UNA <= SEG_ACK(packet) && SEG_ACK(packet) <=
                                                                 tcp_data->SND_NXT)
                 {
-                    becoming_established = true;
-                    // chitcpd_update_tcp_state(si, entry, ESTABLISHED);
+                    chitcpd_update_tcp_state(si, entry, ESTABLISHED);
                 }
                 else
                 {
-                    chilog(DEBUG, "seg_ack unacceptable, would send reset here if it were supported");
                     return CHITCP_OK;
                 }
             }
@@ -358,7 +345,6 @@ static int chitcpd_tcp_packet_arrival_handle(serverinfo_t *si, chisocketentry_t 
             {
                 /* The only thing that can arrive here is a retransmission of
                    connection's FIN. Acknowledge it and restart timeout */
-                   chilog(DEBUG, "Updating RCV_NXT from retransmitted remote FIN");
                    tcp_packet_t *send_packet = calloc(1, sizeof(tcp_packet_t));
                    tcphdr_t *send_header;
                    uint8_t payload = 0;
@@ -385,6 +371,8 @@ static int chitcpd_tcp_packet_arrival_handle(serverinfo_t *si, chisocketentry_t 
                     tcp_data->SND_UNA = SEG_ACK(packet);
                     /* Need to remove segments in retransmission queue that
                        are acknowledged as a result of this */
+
+
                 }
                 else if (SEG_ACK(packet) < tcp_data->SND_UNA)
                 {
@@ -408,19 +396,13 @@ static int chitcpd_tcp_packet_arrival_handle(serverinfo_t *si, chisocketentry_t 
                     return CHITCP_OK;
                 }
 
-                if (becoming_established)
-                {
-                    chitcpd_update_tcp_state(si, entry, ESTABLISHED);
-                }
-                // ....
-
                 /* Additional processing in addition to base required by all above */
                 if (entry->tcp_state == FIN_WAIT_1)
                 {
                     // If our FIN is now acknowledged, enter FIN_WAIT_2 and continue processing
                     chitcpd_update_tcp_state(si, entry, FIN_WAIT_2);
                 }
-                else if (entry->tcp_state == FIN_WAIT_2)
+                if (entry->tcp_state == FIN_WAIT_2)
                 {
                     /* If the retransmission queue is empty, the user's CLOSE
                        can be acknowledged, but do not delete TCB */
@@ -430,43 +412,59 @@ static int chitcpd_tcp_packet_arrival_handle(serverinfo_t *si, chisocketentry_t 
                 {
                     /* If the ACK acknowledges our FIN, then enter the TIME_WAIT
                        state, otherwise ignore the segment */
-                    // How to know if the ACK acknowledges our FIN specifically?
-
+                    // The ACK must have acknowledged our fin because we already checked that ACK > SND_UNA above
+                    chitcpd_update_tcp_state(si, entry, TIME_WAIT);
                 }
 
             }
         }
 
         // Processing the segment text:
+        int nbytes = 0;
         switch (entry->tcp_state)
         {
             case ESTABLISHED:
             case FIN_WAIT_1:
             case FIN_WAIT_2:
-                // ...
+                // Add segment text to user RECEIVE buffer
+                nbytes = circular_buffer_write(&tcp_data->recv, TCP_PAYLOAD_START(packet), TCP_PAYLOAD_LEN(packet), true);
+                tcp_data->RCV_NXT += nbytes;
+                tcp_data->RCV_WND -= nbytes;
                 break;
 
             case CLOSE_WAIT:
             case CLOSING:
             case LAST_ACK:
             case TIME_WAIT:
-                // ...
+                // Should not occur, since a FIN has been received from the remote side
                 break;
             default:
                 break;
         }
-
+// Part of teardown is that you send whatever is left????
         // Check FIN bit:
         if (header->fin)
         {
             if (entry->tcp_state == CLOSED || entry->tcp_state == LISTEN ||
                 entry->tcp_state == SYN_SENT)
             {
-                return 0;
+                return CHITCP_OK;
             }
             // Signal the user "connection closing"
             // Return any pending RECEIVES with the same message
             tcp_data->RCV_NXT = SEG_SEQ(packet) + 1;
+
+            tcp_packet_t *send_packet = calloc(1, sizeof(tcp_packet_t));
+            tcphdr_t *send_header;
+            uint8_t payload = 0;
+            chitcpd_tcp_packet_create(entry, send_packet, &payload, 0);
+            send_header = TCP_PACKET_HEADER(send_packet);
+            send_header->seq = chitcp_htonl(tcp_data->SND_NXT);
+            send_header->ack_seq = chitcp_htonl(tcp_data->RCV_NXT);
+            send_header->win = chitcp_htons(tcp_data->SND_WND);
+            send_header->ack = 1;
+            chitcpd_send_tcp_packet(si, entry, send_packet);
+
             switch (entry->tcp_state)
             {
                 case SYN_RCVD:
@@ -480,94 +478,8 @@ static int chitcpd_tcp_packet_arrival_handle(serverinfo_t *si, chisocketentry_t 
                     break;
             }
         }
-        //
     }
 
-//   seventh, process the segment text,
-//
-//     ESTABLISHED STATE
-//     FIN-WAIT-1 STATE
-//     FIN-WAIT-2 STATE
-//
-//       Once in the ESTABLISHED state, it is possible to deliver segment
-//       text to user RECEIVE buffers.  Text from segments can be moved
-//       into buffers until either the buffer is full or the segment is
-//       empty.  If the segment empties and carries an PUSH flag, then
-//       the user is informed, when the buffer is returned, that a PUSH
-//       has been received.
-//
-//       When the TCP takes responsibility for delivering the data to the
-//       user it must also acknowledge the receipt of the data.
-//
-//       Once the TCP takes responsibility for the data it advances
-//       RCV.NXT over the data accepted, and adjusts RCV.WND as
-//       apporopriate to the current buffer availability.  The total of
-//       RCV.NXT and RCV.WND should not be reduced.
-//
-//       Please note the window management suggestions in section 3.7.
-//
-//       Send an acknowledgment of the form:
-//
-//         <SEQ=SND.NXT><ACK=RCV.NXT><CTL=ACK>
-//
-//       This acknowledgment should be piggybacked on a segment being
-//       transmitted if possible without incurring undue delay.
-//
-//
-//     CLOSE-WAIT STATE
-//     CLOSING STATE
-//     LAST-ACK STATE
-//     TIME-WAIT STATE
-//
-//       This should not occur, since a FIN has been received from the
-//       remote side.  Ignore the segment text.
-
-//   eighth, check the FIN bit,
-//
-//     Do not process the FIN if the state is CLOSED, LISTEN or SYN-SENT
-//     since the SEG.SEQ cannot be validated; drop the segment and
-//     return.
-//
-//     If the FIN bit is set, signal the user "connection closing" and
-//     return any pending RECEIVEs with same message, advance RCV.NXT
-//     over the FIN, and send an acknowledgment for the FIN.  Note that
-//     FIN implies PUSH for any segment text not yet delivered to the
-//     user.
-//
-//       SYN-RECEIVED STATE
-//       ESTABLISHED STATE
-//
-//         Enter the CLOSE-WAIT state.
-//
-//       FIN-WAIT-1 STATE
-//
-//         If our FIN has been ACKed (perhaps in this segment), then
-//         enter TIME-WAIT, start the time-wait timer, turn off the other
-//         timers; otherwise enter the CLOSING state.
-//
-//       FIN-WAIT-2 STATE
-//
-//         Enter the TIME-WAIT state.  Start the time-wait timer, turn
-//         off the other timers.
-//
-//       CLOSE-WAIT STATE
-//
-//         Remain in the CLOSE-WAIT state.
-//
-//       CLOSING STATE
-//
-//         Remain in the CLOSING state.
-//
-//       LAST-ACK STATE
-//
-//         Remain in the LAST-ACK state.
-//
-//       TIME-WAIT STATE
-//
-//         Remain in the TIME-WAIT state.  Restart the 2 MSL time-wait
-//         timeout.
-//
-//   and return.
 }
 
 int chitcpd_tcp_state_handle_CLOSED(serverinfo_t *si, chisocketentry_t *entry, tcp_event_type_t event)
@@ -594,7 +506,7 @@ int chitcpd_tcp_state_handle_CLOSED(serverinfo_t *si, chisocketentry_t *entry, t
             tcp_data->SND_UNA = iss;
             tcp_data->SND_NXT = iss + 1;
             tcp_data->RCV_WND = 4096;
-            tcp_data->SND_WND = 4096;
+            circular_buffer_set_seq_initial(&tcp_data->send, iss + 1);
 
             tcp_packet_t *packet = calloc(1, sizeof(tcp_packet_t));
             tcphdr_t *header;
