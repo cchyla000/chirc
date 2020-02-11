@@ -115,6 +115,7 @@ void tcp_data_init(serverinfo_t *si, chisocketentry_t *entry)
 
     tcp_data->RCV_WND = BASE_RCV_WND;
 
+
 }
 
 void tcp_data_free(serverinfo_t *si, chisocketentry_t *entry)
@@ -160,45 +161,39 @@ static int check_and_send_from_buffer(serverinfo_t *si, chisocketentry_t *entry)
 {
   //  chilog(INFO, "entering check_and_send_from_buffer");
     tcp_data_t *tcp_data = &entry->socket_state.active.tcp_data;
-    uint8_t data_to_send[TCP_BUFFER_SIZE];
-    uint8_t *next_data_to_send = data_to_send;
-    uint32_t len = MIN(tcp_data->SND_WND, TCP_BUFFER_SIZE);
-    int next_len;
-    int nbytes = circular_buffer_read(&tcp_data->send, data_to_send, len, false);
-    if (nbytes == CHITCP_EWOULDBLOCK)
+//    uint8_t data_to_send[TCP_BUFFER_SIZE];
+//    uint8_t *next_data_to_send = data_to_send;
+  //   uint32_t len = MIN(tcp_data->SND_WND, TCP_BUFFER_SIZE);
+  //   int next_len;
+  //   int nbytes = circular_buffer_read(&tcp_data->send, data_to_send, len, false);
+  //   if (nbytes == CHITCP_EWOULDBLOCK)
+  //   {
+  //       return CHITCP_OK;
+  //   }
+  //   while (nbytes > 0)
+  //   {
+  //       next_len = MIN(nbytes, MSS);
+  // //      chilog(INFO, "next_data_to_send is %d", (next_data_to_send - data_to_send));
+  //       format_and_send_packet(si, entry, tcp_data, next_data_to_send, next_len, false, false);
+  //       tcp_data->SND_WND = circular_buffer_available(&tcp_data->send);
+  //       tcp_data->SND_NXT = circular_buffer_next(&tcp_data->send);
+  //       nbytes -= next_len;
+  //       next_data_to_send += next_len;
+  //   }
+    uint8_t data_to_send[MSS];
+    uint32_t len = MSS;
+    int nbytes;
+    while (circular_buffer_count(&tcp_data->send) > 0 &&
+             (tcp_data->SND_WND - (tcp_data->SND_NXT - tcp_data->SND_UNA) > 0))
     {
-        return CHITCP_OK;
+        len = MIN(tcp_data->SND_WND - (tcp_data->SND_NXT - tcp_data->SND_UNA), MSS);
+        chilog(DEBUG, "Length of amount to read: %i", len);
+        nbytes = circular_buffer_read(&tcp_data->send, data_to_send, len, true);
+        chilog(INFO, "nbytes is %d", nbytes);
+        format_and_send_packet(si, entry, tcp_data, data_to_send, nbytes, false, false);
+        tcp_data->SND_NXT += nbytes;
     }
-    while (nbytes > 0)
-    {
-        next_len = MIN(nbytes, MSS);
-  //      chilog(INFO, "next_data_to_send is %d", (next_data_to_send - data_to_send));
-        format_and_send_packet(si, entry, tcp_data, next_data_to_send, next_len, false, false);
-        tcp_data->SND_WND = circular_buffer_available(&tcp_data->send);
-        tcp_data->SND_NXT = circular_buffer_next(&tcp_data->send);
-        nbytes -= next_len;
-        next_data_to_send += next_len;
-    }
-    // uint8_t data_to_send[MSS];
-    // uint32_t len = MSS;
-    // int nbytes;
-    // while (circular_buffer_count(&tcp_data->send) != 0 && tcp_data->SND_WND != 0)
-    // {
-    //     len = MIN(tcp_data->SND_WND, MSS);
-    //     chilog(DEBUG, "Length of amount to read: %i", len);
-    //     if (len)
-    //     {
-    //         nbytes = circular_buffer_read(&tcp_data->send, data_to_send, len, true);
-    //         tcp_data->SND_WND -= nbytes;
-    //         /* create and send packet of data */
-    //         format_and_send_packet(si, entry, tcp_data, data_to_send, nbytes, false, false);
-    //         tcp_data->SND_NXT += nbytes;
-    //     }
-    //     else
-    //     {
-    //         break;
-    //     }
-    // }
+
     return CHITCP_OK;
 }
 
