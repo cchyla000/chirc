@@ -400,7 +400,10 @@ static int chitcpd_tcp_packet_arrival_handle(serverinfo_t *si, chisocketentry_t 
                 {
                     chilog(INFO, "about to update FIN_WAIT_1 to FIN_WAIT 2");
                     // If our FIN is now acknowledged, enter FIN_WAIT_2 and continue processing
-                    chitcpd_update_tcp_state(si, entry, FIN_WAIT_2);
+                    if (tcp_data->SND_UNA == tcp_data->SND_NXT)
+                    {
+                        chitcpd_update_tcp_state(si, entry, FIN_WAIT_2);
+                    }
                 }
                 if (entry->tcp_state == FIN_WAIT_2)
                 {
@@ -413,8 +416,12 @@ static int chitcpd_tcp_packet_arrival_handle(serverinfo_t *si, chisocketentry_t 
                     /* If the ACK acknowledges our FIN, then enter the TIME_WAIT
                        state, otherwise ignore the segment */
                     // The ACK must have acknowledged our fin because we already checked that ACK > SND_UNA above
-                    chitcpd_update_tcp_state(si, entry, TIME_WAIT);
-                    chitcpd_update_tcp_state(si, entry, CLOSED);
+                    if (tcp_data->SND_UNA == tcp_data->SND_NXT)
+                    {
+                        chitcpd_update_tcp_state(si, entry, TIME_WAIT);
+                        chitcpd_update_tcp_state(si, entry, CLOSED);
+                    }
+
                 }
 
             }
