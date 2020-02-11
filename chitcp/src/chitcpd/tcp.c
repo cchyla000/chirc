@@ -159,27 +159,7 @@ format_and_send_packet(serverinfo_t *si, chisocketentry_t *entry, tcp_data_t *tc
 
 static int check_and_send_from_buffer(serverinfo_t *si, chisocketentry_t *entry)
 {
-  //  chilog(INFO, "entering check_and_send_from_buffer");
     tcp_data_t *tcp_data = &entry->socket_state.active.tcp_data;
-//    uint8_t data_to_send[TCP_BUFFER_SIZE];
-//    uint8_t *next_data_to_send = data_to_send;
-  //   uint32_t len = MIN(tcp_data->SND_WND, TCP_BUFFER_SIZE);
-  //   int next_len;
-  //   int nbytes = circular_buffer_read(&tcp_data->send, data_to_send, len, false);
-  //   if (nbytes == CHITCP_EWOULDBLOCK)
-  //   {
-  //       return CHITCP_OK;
-  //   }
-  //   while (nbytes > 0)
-  //   {
-  //       next_len = MIN(nbytes, MSS);
-  // //      chilog(INFO, "next_data_to_send is %d", (next_data_to_send - data_to_send));
-  //       format_and_send_packet(si, entry, tcp_data, next_data_to_send, next_len, false, false);
-  //       tcp_data->SND_WND = circular_buffer_available(&tcp_data->send);
-  //       tcp_data->SND_NXT = circular_buffer_next(&tcp_data->send);
-  //       nbytes -= next_len;
-  //       next_data_to_send += next_len;
-  //   }
     uint8_t data_to_send[MSS];
     uint32_t len = MSS;
     int nbytes;
@@ -187,9 +167,7 @@ static int check_and_send_from_buffer(serverinfo_t *si, chisocketentry_t *entry)
              (tcp_data->SND_WND - (tcp_data->SND_NXT - tcp_data->SND_UNA) > 0))
     {
         len = MIN(tcp_data->SND_WND - (tcp_data->SND_NXT - tcp_data->SND_UNA), MSS);
-        chilog(DEBUG, "Length of amount to read: %i", len);
         nbytes = circular_buffer_read(&tcp_data->send, data_to_send, len, true);
-        chilog(INFO, "nbytes is %d", nbytes);
         format_and_send_packet(si, entry, tcp_data, data_to_send, nbytes, false, false);
         tcp_data->SND_NXT += nbytes;
     }
@@ -199,7 +177,6 @@ static int check_and_send_from_buffer(serverinfo_t *si, chisocketentry_t *entry)
 
 static int chitcpd_tcp_packet_arrival_handle(serverinfo_t *si, chisocketentry_t *entry)
 {
-    chilog(DEBUG, "Packet Arrival Handler Reached");
     tcp_data_t *tcp_data = &entry->socket_state.active.tcp_data;
     tcp_packet_t *packet = NULL;
     tcphdr_t *header = NULL;
@@ -283,7 +260,7 @@ static int chitcpd_tcp_packet_arrival_handle(serverinfo_t *si, chisocketentry_t 
         bool acceptable;
         if (SEG_LEN(packet) == 0)
         {
-            chilog(DEBUG, "seg_len = %d, rcv_wnd = %d, seg_seq = %d, rcv_nxt = %d", SEG_LEN(packet), tcp_data->RCV_WND, SEG_SEQ(packet), tcp_data->RCV_NXT);
+
             if (tcp_data->RCV_WND == 0)
             {
                 acceptable = (SEG_SEQ(packet) == tcp_data->RCV_NXT);
@@ -388,7 +365,6 @@ static int chitcpd_tcp_packet_arrival_handle(serverinfo_t *si, chisocketentry_t 
                 else if (SEG_ACK(packet) > tcp_data->SND_UNA)
                 {
                     // Remote is ACKing something not yet sent; so send an ACK and return
-                    chilog(DEBUG, "Remote is ACKing something not yet sent");
                     format_and_send_packet(si, entry, tcp_data, NULL, 0, false, false);
                     return CHITCP_OK;
                 }
@@ -435,7 +411,6 @@ static int chitcpd_tcp_packet_arrival_handle(serverinfo_t *si, chisocketentry_t 
                 case FIN_WAIT_2:
                     // Add segment text to user RECEIVE buffer
                     nbytes = circular_buffer_write(&tcp_data->recv, TCP_PAYLOAD_START(packet), TCP_PAYLOAD_LEN(packet), true);
-                    chilog(INFO, "rcv next is %d", tcp_data->RCV_NXT);
                     tcp_data->RCV_NXT = circular_buffer_next(&tcp_data->recv);
                     tcp_data->RCV_WND = circular_buffer_available(&tcp_data->recv);
                     format_and_send_packet(si, entry, tcp_data, NULL, 0, false, false);
