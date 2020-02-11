@@ -370,6 +370,7 @@ static int chitcpd_tcp_packet_arrival_handle(serverinfo_t *si, chisocketentry_t 
                        state, otherwise ignore the segment */
                     // The ACK must have acknowledged our fin because we already checked that ACK > SND_UNA above
                     chitcpd_update_tcp_state(si, entry, TIME_WAIT);
+                    chitcpd_update_tcp_state(si, entry, CLOSED);
                 }
 
             }
@@ -417,10 +418,20 @@ static int chitcpd_tcp_packet_arrival_handle(serverinfo_t *si, chisocketentry_t 
             {
                 case SYN_RCVD:
                 case ESTABLISHED:
+                    chitcpd_update_tcp_state(si, entry, CLOSE_WAIT);
                     break;
                 case FIN_WAIT_1:
+                    /* If our FIN has been ACKed (perhaps in this segment), then
+                       enter TIME_WAIT, otherwise enter the CLOSING state */
+                    chitcpd_update_tcp_state(si, entry, CLOSING);
+                    break;
+                case FIN_WAIT_2:
+                    chitcpd_update_tcp_state(si, entry, TIME_WAIT);
+                    chitcpd_update_tcp_state(si, entry, CLOSED);
                     break;
                 case TIME_WAIT:
+                    // Restart the 2 MSL time-wait timeout
+                    chitcpd_update_tcp_state(si, entry, CLOSED);
                     break;
                 default: // Do Nothing
                     break;
