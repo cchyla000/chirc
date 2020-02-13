@@ -131,12 +131,12 @@ void tcp_data_free(serverinfo_t *si, chisocketentry_t *entry)
  * data and flags.
  *
  * PARAMETERS:
- *  si - server information
- *  entry - chisocket entry for this connection
- *  payload - data to be sent
+ *  si          - server information
+ *  entry       - chisocket entry for this connection
+ *  payload     - data to be sent
  *  payload_len - length in bytes of data to be sent
- *  syn - boolean to say if packet should include a syn flag
- *  fin - boolean to say if packet should include a fin flag
+ *  syn         - boolean to say if packet should include a syn flag
+ *  fin         - boolean to say if packet should include a fin flag
  *
  * RETURN: CHITCP_OK upon completion
  */
@@ -149,7 +149,7 @@ static int format_and_send_packet(serverinfo_t *si, chisocketentry_t *entry,
  * and if there is room in the effective window to send it.
  *
  * PARAMETERS:
- *  si - server information
+ *  si    - server information
  *  entry - chisocket entry for this connection
  *
  * RETURN: CHITCP_OK upon completion
@@ -161,10 +161,10 @@ static int check_and_send_from_buffer(serverinfo_t *si, chisocketentry_t *entry)
  * DESCRIPTION: This function handles PACKET_ARRIVAL event in all states.
  *
  * PARAMETERS:
- *  si - server information
+ *  si    - server information
  *  entry - chisocket entry for this connection
  *
- * RETURN: CHITCP_OK upon successful completion
+ * RETURN: CHITCP_OK upon completion
  */
 static int chitcpd_tcp_packet_arrival_handle(serverinfo_t *si, chisocketentry_t *entry);
 
@@ -266,17 +266,16 @@ int chitcpd_tcp_state_handle_ESTABLISHED(serverinfo_t *si, chisocketentry_t *ent
     tcp_data_t *tcp_data = &entry->socket_state.active.tcp_data;
     if (event == APPLICATION_SEND)
     {
-//       chilog(INFO, "ESTABLISHED APPLICATION_SEND given");
        check_and_send_from_buffer(si, entry);
     }
     else if (event == PACKET_ARRIVAL)
     {
-  //      chilog(INFO, "ESTABLISHED PACKET_ARRIVAL given");
         return chitcpd_tcp_packet_arrival_handle(si, entry);
     }
     else if (event == APPLICATION_RECEIVE)
     {
         tcp_data->RCV_WND = circular_buffer_available(&tcp_data->recv);
+        tcp_data->RCV_NXT = circular_buffer_next(&tcp_data->recv);
     }
     else if (event == APPLICATION_CLOSE)
     {
