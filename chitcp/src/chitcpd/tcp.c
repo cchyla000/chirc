@@ -450,7 +450,7 @@ static int check_and_send_from_buffer(serverinfo_t *si, chisocketentry_t *entry)
         nbytes = circular_buffer_read(&tcp_data->send, data_to_send, len, true);
         format_and_send_packet(si, entry, data_to_send, nbytes, false, false);
         tcp_data->SND_NXT += nbytes;
-        effective_window -= nbytes;
+        effective_window = tcp_data->SND_WND - (tcp_data->SND_NXT - tcp_data->SND_UNA);
     }
 
     return CHITCP_OK;
