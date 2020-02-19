@@ -79,7 +79,34 @@ int timespec_subtract(struct timespec *result, struct timespec *x, struct timesp
 /* See multitimer.h */
 int mt_init(multi_timer_t *mt, uint16_t num_timers)
 {
-    /* Your code here */
+    int i;
+    single_timer_t timer;
+    mt->num_timers = num_timers;
+    mt->timer_list = NULL;  // Must ensure it is zeroed for utlish to work
+    mt->timer_array = calloc(num_timers, sizeof(single_timer_t));
+    if (!mt->timer_array)
+    {
+        return CHITCP_ENOMEM;
+    }
+    else if (!pthread_mutex_init(&mt->mutex, NULL))
+    {
+        free(mt->timer_array);
+        return CHITCP_ENOMEM;
+    }
+    else if (!pthread_cond_init(&mt->cond, NULL))
+    {
+        free(mt->timer_array);
+        free(&mt->mutex);
+        return CHITCP_ENOMEM;
+    }
+
+    for (i=0; i < num_timers; i++)
+    {
+        timer = mt->timer_array[i];
+        timer.id = i;
+    }
+
+    /* Create multitimer thread */
 
     return CHITCP_OK;
 }
@@ -88,7 +115,11 @@ int mt_init(multi_timer_t *mt, uint16_t num_timers)
 /* See multitimer.h */
 int mt_free(multi_timer_t *mt)
 {
-    /* Your code here */
+    free(mt->timer_array);
+    free(mt->timer_list);
+    pthread_mutex_destroy(&mt->mutex);
+    pthread_cond_destroy(&mt->cond);
+    
 
     return CHITCP_OK;
 }

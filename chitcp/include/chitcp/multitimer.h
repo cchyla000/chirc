@@ -89,13 +89,32 @@ typedef struct single_timer
 
     /* How many times has this timer timed out? */
     uint64_t num_timeouts;
+
+    /* Next single_timer in multi_timer linked list */
+    struct single_timer *next;
+
 } single_timer_t;
 
 
 /* A multitimer */
 typedef struct multi_timer
 {
-    /* Add fields here */
+    /* Array where we can easily
+     * access single_timers by index */
+    single_timer_t *timer_array;
+
+    /* Singly-linked list of single_timers
+     * sorted in increasing order of timeout */
+    single_timer_t *timer_list;
+
+    /* Condition variable and associated mutex on which
+     * the multi_timer thread blocks whenever it is not
+     * actively setting a timer or dealing with timeouts */
+    pthread_cond_t cond;
+    pthread_mutex_t mutex;
+
+    uint16_t num_timers;
+
 } multi_timer_t;
 
 
