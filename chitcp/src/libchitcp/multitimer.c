@@ -44,8 +44,19 @@
 
 #include "chitcp/multitimer.h"
 #include "chitcp/log.h"
+#include "chitcp/utlist.h"
 
-
+/* single_timer_compare - Compares two active timers by their timeouts.
+ *
+ * Used to maintain sorted timer_list in increasing order of timeout times
+ *
+ * x, y: active timers to compare
+ *
+ * Returns: 1 if x->timeout < y->timeout,
+ *          0 if x->timeout = y->timeout,
+ *          1 if x->timeout > y->timeout
+ */
+static int single_timer_compare(single_timer_t *x, single_timer_t *y);
 
 /* See multitimer.h */
 int timespec_subtract(struct timespec *result, struct timespec *x, struct timespec *y)
@@ -119,7 +130,7 @@ int mt_free(multi_timer_t *mt)
     free(mt->timer_list);
     pthread_mutex_destroy(&mt->mutex);
     pthread_cond_destroy(&mt->cond);
-    
+
 
     return CHITCP_OK;
 }
@@ -128,7 +139,14 @@ int mt_free(multi_timer_t *mt)
 /* See multitimer.h */
 int mt_get_timer_by_id(multi_timer_t *mt, uint16_t id, single_timer_t **timer)
 {
-    /* Your code here */
+    if (id >= mt->num_timers)
+    {
+        return CHITCP_EINVAL;
+    }
+    else
+    {
+        *timer = &mt->timer_array[id];
+    }
 
     return CHITCP_OK;
 }
@@ -137,16 +155,53 @@ int mt_get_timer_by_id(multi_timer_t *mt, uint16_t id, single_timer_t **timer)
 /* See multitimer.h */
 int mt_set_timer(multi_timer_t *mt, uint16_t id, uint64_t timeout, mt_callback_func callback, void* callback_args)
 {
-    /* Your code here */
+    single_timer_t timer;
+
+    if (id >= mt->num_timers)
+    {
+        return CHITCP_EINVAL;
+    }
+
+    timer = mt->timer_array[id];
+
+    if (timer.active)
+    {
+        return CHITCP_EINVAL;
+    }
+    else
+    {
+        timer.active = false;
+        timer.callback = callback;
+        clock_gettime(CLOCK_REALTIME, &timer.timeout);
+        timer.timeout.tv_nsec += timeout;
+        LL_INSERT_INORDER(mt->timer_list, &timer, single_timer_compare);
+
+    }
 
     return CHITCP_OK;
+
 }
 
 
 /* See multitimer.h */
 int mt_cancel_timer(multi_timer_t *mt, uint16_t id)
 {
-    /* Your code here */
+    if (id >= mt->num_timers)
+    {
+        return CHITCP_EINVAL;
+    }
+
+    single_timer_t timer = mt->timer_array[id];
+
+    if (!timer.active)
+    {
+        return CHITCP_EINVAL;
+    }
+    else
+    {
+        LL_DELETE(mt->timer_list, &timer);
+        timer.active = false;
+    }
 
     return CHITCP_OK;
 }
@@ -155,7 +210,14 @@ int mt_cancel_timer(multi_timer_t *mt, uint16_t id)
 /* See multitimer.h */
 int mt_set_timer_name(multi_timer_t *mt, uint16_t id, const char *name)
 {
-    /* Your code here */
+    if (id >= mt->num_timers)
+    {
+        return CHITCP_EINVAL;
+    }
+    else
+    {
+        strncpy(mt->timer_array[id].name, name, MAX_TIMER_NAME_LEN);
+    }
 
     return CHITCP_OK;
 }
@@ -196,4 +258,28 @@ int mt_chilog(loglevel_t level, multi_timer_t *mt, bool active_only)
     /* Your code here */
 
     return CHITCP_OK;
+}
+
+static int single_timer_compare(single_timer_t *x, single_timer_t *y)
+{
+    int i;
+    struct timespec *result, *time_x, *time_y;
+    time_x = &x->timeout;
+    time_y = &y->timeout;
+
+    i = timespec_subtract(result, time_x, time_y);
+
+    if (i)
+    {
+        /* Result is negative, so X is less than Y */
+        return -1;
+    }
+    else if (result->tv_sec ==0 && result->tv_nsec == 0)
+    {
+        return 0;
+    }
+    else
+    {
+        return 1;
+    }
 }

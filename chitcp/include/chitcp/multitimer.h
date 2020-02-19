@@ -93,6 +93,12 @@ typedef struct single_timer
     /* Next single_timer in multi_timer linked list */
     struct single_timer *next;
 
+    struct timespec timeout;
+
+    /* The callback function that will be
+     * called when this timer expires */
+    mt_callback_func callback;
+
 } single_timer_t;
 
 
