@@ -46,6 +46,8 @@
 #include "chitcp/log.h"
 #include "chitcp/utlist.h"
 
+#define NANO_PER_SEC 1000000000L
+
 /* single_timer_compare - Compares two active timers by their timeouts.
  *
  * Used to maintain sorted timer_list in increasing order of timeout times
@@ -96,8 +98,9 @@ int timespec_subtract(struct timespec *result, struct timespec *x, struct timesp
 /* See multitimer.h */
 int mt_init(multi_timer_t *mt, uint16_t num_timers)
 {
+    chilog(DEBUG, "In mt_init");
     int i;
-    single_timer_t timer;
+    single_timer_t *timer;
     pthread_t multi_timer_thread;
     mt->num_timers = num_timers;
     mt->timer_list = NULL;  // Must ensure it is zeroed for utlish to work
@@ -106,12 +109,12 @@ int mt_init(multi_timer_t *mt, uint16_t num_timers)
     {
         return CHITCP_ENOMEM;
     }
-    else if (!pthread_mutex_init(&mt->mutex, NULL))
+    else if (pthread_mutex_init(&mt->mutex, NULL) != 0)
     {
         free(mt->timer_array);
         return CHITCP_EINIT;
     }
-    else if (!pthread_cond_init(&mt->cond, NULL))
+    else if (pthread_cond_init(&mt->cond, NULL) != 0)
     {
         free(mt->timer_array);
         free(&mt->mutex);
@@ -120,8 +123,8 @@ int mt_init(multi_timer_t *mt, uint16_t num_timers)
 
     for (i=0; i < num_timers; i++)
     {
-        timer = mt->timer_array[i];
-        timer.id = i;
+        timer = &mt->timer_array[i];
+        timer->id = i;
     }
 
     /* Create multitimer thread */
@@ -133,6 +136,12 @@ int mt_init(multi_timer_t *mt, uint16_t num_timers)
         free(&mt->cond);
         return CHITCP_ETHREAD;
     }
+    else
+    {
+        mt->multi_timer_thread = multi_timer_thread;
+    }
+
+    chilog(DEBUG, "Exiting mt_init");
 
     return CHITCP_OK;
 }
@@ -141,12 +150,18 @@ int mt_init(multi_timer_t *mt, uint16_t num_timers)
 /* See multitimer.h */
 int mt_free(multi_timer_t *mt)
 {
+    chilog(DEBUG, "In mt_free");
+
+    pthread_mutex_lock(&mt->mutex);
+    pthread_cancel(mt->multi_timer_thread);
+    pthread_mutex_unlock(&mt->mutex);
+
     free(mt->timer_array);
     free(mt->timer_list);
     pthread_mutex_destroy(&mt->mutex);
     pthread_cond_destroy(&mt->cond);
 
-    pthread_exit(NULL);
+    chilog(DEBUG, "Exiting mt_free");
 
     return CHITCP_OK;
 }
@@ -155,14 +170,19 @@ int mt_free(multi_timer_t *mt)
 /* See multitimer.h */
 int mt_get_timer_by_id(multi_timer_t *mt, uint16_t id, single_timer_t **timer)
 {
+
+    chilog(DEBUG, "In mt_get_timer_by_id");
     if (id >= mt->num_timers)
     {
+        chilog(DEBUG, "id is greater than number of timers");
         return CHITCP_EINVAL;
     }
     else
     {
         *timer = &mt->timer_array[id];
     }
+
+    chilog(DEBUG, "Exiting mt_get_timer_by_id");
 
     return CHITCP_OK;
 }
@@ -171,7 +191,10 @@ int mt_get_timer_by_id(multi_timer_t *mt, uint16_t id, single_timer_t **timer)
 /* See multitimer.h */
 int mt_set_timer(multi_timer_t *mt, uint16_t id, uint64_t timeout, mt_callback_func callback, void* callback_args)
 {
-    single_timer_t timer;
+    single_timer_t *timer;
+    long tmp_nsec;
+
+    chilog(DEBUG, "In mt_set_timer");
 
     pthread_mutex_lock(&mt->mutex);
     if (id >= mt->num_timers)
@@ -180,26 +203,33 @@ int mt_set_timer(multi_timer_t *mt, uint16_t id, uint64_t timeout, mt_callback_f
         return CHITCP_EINVAL;
     }
 
-    timer = mt->timer_array[id];
+    timer = &mt->timer_array[id];
 
-    if (timer.active)
+    if (timer->active)
     {
+        chilog(DEBUG, "Error in mt_set_timer");
         pthread_mutex_unlock(&mt->mutex);
         return CHITCP_EINVAL;
     }
     else
     {
-        timer.active = false;
-        timer.callback = callback;
-        clock_gettime(CLOCK_REALTIME, &timer.timeout);
-        timer.timeout.tv_nsec += timeout;
-        LL_INSERT_INORDER(mt->timer_list, &timer, single_timer_compare);
+        timer->active = true;
+        timer->callback = callback;
+        clock_gettime(CLOCK_REALTIME, &timer->timeout);
+        chilog(DEBUG, "real time at set: nsec = %d, sec = %d", timer->timeout.tv_nsec, timer->timeout.tv_sec);
+        tmp_nsec = timeout + timer->timeout.tv_nsec;
+        timer->timeout.tv_nsec = tmp_nsec % NANO_PER_SEC;
+        timer->timeout.tv_sec += (tmp_nsec / NANO_PER_SEC);
+        chilog(DEBUG, "timeout time at set: nsec = %d, sec = %d", timer->timeout.tv_nsec, timer->timeout.tv_sec);
+        LL_INSERT_INORDER(mt->timer_list, timer, single_timer_compare);
 
         /* Signal multitimer to reset its timedwait, which
          * could have changed as a result of this newly set timer */
-        pthread_cond_signal(&mt->cond);
         pthread_mutex_unlock(&mt->mutex);
+        pthread_cond_signal(&mt->cond);
+
     }
+    chilog(DEBUG, "Exiting mt_set_timer");
 
     return CHITCP_OK;
 
@@ -209,6 +239,7 @@ int mt_set_timer(multi_timer_t *mt, uint16_t id, uint64_t timeout, mt_callback_f
 /* See multitimer.h */
 int mt_cancel_timer(multi_timer_t *mt, uint16_t id)
 {
+    chilog(DEBUG, "In mt_cancel_timer");
     pthread_mutex_lock(&mt->mutex);
     if (id >= mt->num_timers)
     {
@@ -216,19 +247,21 @@ int mt_cancel_timer(multi_timer_t *mt, uint16_t id)
         return CHITCP_EINVAL;
     }
 
-    single_timer_t timer = mt->timer_array[id];
+    single_timer_t *timer = &mt->timer_array[id];
 
-    if (!timer.active)
+    if (!timer->active)
     {
+        chilog(DEBUG, "Error in mt_cancel_timer");
         pthread_mutex_unlock(&mt->mutex);
         return CHITCP_EINVAL;
     }
     else
     {
-        LL_DELETE(mt->timer_list, &timer);
-        timer.active = false;
+        LL_DELETE(mt->timer_list, timer);
+        timer->active = false;
         pthread_mutex_unlock(&mt->mutex);
     }
+    chilog(DEBUG, "Exiting mt_cancel_timer");
 
     return CHITCP_OK;
 }
@@ -290,18 +323,18 @@ int mt_chilog(loglevel_t level, multi_timer_t *mt, bool active_only)
 static int single_timer_compare(single_timer_t *x, single_timer_t *y)
 {
     int i;
-    struct timespec *result, *time_x, *time_y;
-    time_x = &x->timeout;
-    time_y = &y->timeout;
+    struct timespec result, time_x, time_y;
+    time_x = x->timeout;
+    time_y = y->timeout;
 
-    i = timespec_subtract(result, time_x, time_y);
+    i = timespec_subtract(&result, &time_x, &time_y);
 
     if (i)
     {
         /* Result is negative, so X is less than Y */
         return -1;
     }
-    else if (result->tv_sec == 0 && result->tv_nsec == 0)
+    else if (result.tv_sec == 0 && result.tv_nsec == 0)
     {
         return 0;
     }
@@ -314,12 +347,13 @@ static int single_timer_compare(single_timer_t *x, single_timer_t *y)
 static bool timer_expired(single_timer_t *timer)
 {
     int i;
-    struct timespec *realtime, *result;
-    clock_gettime(CLOCK_REALTIME, realtime);
-    i = timespec_subtract(result, &timer->timeout, realtime);
+    struct timespec realtime, result;
+    clock_gettime(CLOCK_REALTIME, &realtime);
+
+    i = timespec_subtract(&result, &timer->timeout, &realtime);
 
     // timeout minus realtime is negative or 0, so timer is expired
-    if (i || (result->tv_sec == 0 && result->tv_nsec == 0))
+    if (i || (result.tv_sec == 0 && result.tv_nsec == 0))
     {
         return true;
     }
@@ -341,11 +375,15 @@ static void *timer_thread_func(void *args)
     pthread_mutex_lock(&mt->mutex);
     while (1)
     {
+        chilog(DEBUG, "New iteration of timer_thread_func");
 
         for (tmp = mt->timer_list; tmp; tmp = tmp->next)
         {
+             chilog(DEBUG, "Iterating list in timer_thread_func");
+             chilog(DEBUG, "tmp timespec nsec = %d, sec = %d", tmp->timeout.tv_nsec, tmp->timeout.tv_sec);
              if (timer_expired(tmp))
              {
+                  chilog(DEBUG, "determined that timer expired");
                   LL_DELETE(mt->timer_list, tmp);
                   tmp->active = false;
                   tmp->num_timeouts += 1;
@@ -353,17 +391,19 @@ static void *timer_thread_func(void *args)
              }
              else
              {
+                 chilog(DEBUG, "determined that timer not expired");
                  break;
              }
         }
 
         if (tmp == NULL)  // We have processed all the timers; wait
         {
-
+            chilog(DEBUG, "Waiting on cond");
             pthread_cond_wait(&mt->cond, &mt->mutex);
         }
         else  // Do timedwait on first timer that is unexpired
         {
+            chilog(DEBUG, "Timed wait on cond");
             const_timespec = tmp->timeout; // Guaranteed to be constant for this specific timedwait
             pthread_cond_timedwait(&mt->cond, &mt->mutex,
               (const struct timespec *) &const_timespec);

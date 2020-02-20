@@ -121,6 +121,8 @@ typedef struct multi_timer
 
     uint16_t num_timers;
 
+    pthread_t multi_timer_thread;
+
 } multi_timer_t;
 
 
