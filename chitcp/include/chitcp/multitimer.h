@@ -99,6 +99,10 @@ typedef struct single_timer
      * called when this timer expires */
     mt_callback_func callback;
 
+    /* The parameters to be supplied to the callback
+     * function in the event of a timeout */
+    void *callback_args;
+
 } single_timer_t;
 
 
