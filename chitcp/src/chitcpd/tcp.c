@@ -105,7 +105,7 @@ void tcp_data_init(serverinfo_t *si, chisocketentry_t *entry)
     tcp_data->pending_packets = NULL;
     pthread_mutex_init(&tcp_data->lock_pending_packets, NULL);
     pthread_cond_init(&tcp_data->cv_pending_packets, NULL);
-    pthread_mutex_init( &tcp_data->rt_lock, NULL);
+    pthread_mutex_init(&tcp_data->rt_lock, NULL);
 
     /* Initialization of additional tcp_data_t fields,
      * and creation of retransmission thread, goes here */
@@ -113,7 +113,8 @@ void tcp_data_init(serverinfo_t *si, chisocketentry_t *entry)
     tcp_data->RCV_WND = TCP_BUFFER_SIZE;
 
     tcp_data->rt_queue = NULL;
-    mt_init(&tcp_data->mt, TCP_NUM_TIMERS);
+    tcp_data->mt = calloc(1, sizeof(multi_timer_t));
+    mt_init(tcp_data->mt, TCP_NUM_TIMERS);
     tcp_data->rto = MIN_RTO;
     tcp_data->srtt = 0;
     tcp_data->rttvar = 0;
@@ -124,7 +125,7 @@ void tcp_data_free(serverinfo_t *si, chisocketentry_t *entry)
     tcp_data_t *tcp_data = &entry->socket_state.active.tcp_data;
     rt_queue_elem_t *rt_elem, *tmp;
 
-    mt_free(&tcp_data->mt);
+    mt_free(tcp_data->mt);
 
     pthread_mutex_lock(&tcp_data->rt_lock);
     DL_FOREACH_SAFE(tcp_data->rt_queue, rt_elem, tmp)
@@ -132,6 +133,7 @@ void tcp_data_free(serverinfo_t *si, chisocketentry_t *entry)
         DL_DELETE(tcp_data->rt_queue, rt_elem);
         free(rt_elem->packet);
         free(rt_elem);
+
     }
     pthread_mutex_unlock(&tcp_data->rt_lock);
 
@@ -144,6 +146,30 @@ void tcp_data_free(serverinfo_t *si, chisocketentry_t *entry)
 
     /* Cleanup of additional tcp_data_t fields goes here */
 }
+
+typedef struct rt_callback_args
+{
+
+    serverinfo_t *si;
+    chisocketentry_t *entry;
+
+} rt_callback_args_t;
+
+/* NAME: rt_callback
+ *
+ * DESCRIPTION: This function generates a TIMEOUT_RTX event when the
+ * retransmission timer expires
+ *
+ * PARAMETERS:
+ *  mt     the tcp_data multi_timer
+ *  rt_timer:  - the retranmission timer
+ *  aux:       - auxilary data
+ *
+ * RETURN: CHITCP_OK upon completion
+ */
+static void rt_callback (multi_timer_t* mt, single_timer_t* rt_timer, void* aux);
+
+static int chitcpd_rtx_timeout_handle(serverinfo_t *si, chisocketentry_t *entry);
 
 /* NAME: format_and_send_packet
  *
@@ -192,11 +218,10 @@ int chitcpd_tcp_state_handle_CLOSED(serverinfo_t *si, chisocketentry_t *entry, t
 {
 
     tcp_data_t *tcp_data = &entry->socket_state.active.tcp_data;
+    single_timer_t *rt_timer;
 
     if (event == APPLICATION_CONNECT)
     {
-
-        // Is it possible for some parts of the foreign socket to be unspecififed in a passive OPEN?
 
         if (entry->actpas_type == SOCKET_PASSIVE)
         {
@@ -204,8 +229,6 @@ int chitcpd_tcp_state_handle_CLOSED(serverinfo_t *si, chisocketentry_t *entry, t
         }
         else if (entry->actpas_type == SOCKET_ACTIVE)
         {
-            // Need to check that foreign socket is unspecified
-            // ie, check struct sockaddr_storage remote_addr in chisocketentry??
             int iss = rand();
             tcp_data->ISS = iss;
             tcp_data->SND_UNA = iss;
@@ -221,7 +244,26 @@ int chitcpd_tcp_state_handle_CLOSED(serverinfo_t *si, chisocketentry_t *entry, t
             header->seq = chitcp_htonl(tcp_data->ISS);
             header->win = chitcp_htons(tcp_data->RCV_WND);
             header->syn = 1;
+
+            /* Send packet and add to retransmission queue */
+            pthread_mutex_lock(&tcp_data->rt_lock);
+            rt_queue_elem_t *rt_elem = calloc(1, sizeof(rt_queue_elem_t));
+            rt_elem->packet = packet;
+            clock_gettime(CLOCK_REALTIME, &rt_elem->time_sent);
             chitcpd_send_tcp_packet(si, entry, packet);
+
+            /* If the retransmission queue is empty, then set timer */
+            if (tcp_data->rt_queue == NULL)
+            {
+                rt_callback_args_t *callback_args = calloc (1, sizeof(rt_callback_args_t));
+                callback_args->si = si;
+                callback_args->entry = entry;
+                mt_set_timer(tcp_data->mt, RT_TIMER_ID, tcp_data->rto, rt_callback, callback_args);
+            }
+
+            DL_APPEND(tcp_data->rt_queue, rt_elem);
+            pthread_mutex_unlock(&tcp_data->rt_lock);
+
             chitcpd_update_tcp_state(si, entry, SYN_SENT);
             return CHITCP_OK;
         }
@@ -257,7 +299,7 @@ int chitcpd_tcp_state_handle_SYN_RCVD(serverinfo_t *si, chisocketentry_t *entry,
     }
     else if (event == TIMEOUT_RTX)
     {
-    /* Your code goes here */
+        return chitcpd_rtx_timeout_handle(si , entry);
     }
     else
         chilog(WARNING, "In SYN_RCVD state, received unexpected event.");
@@ -273,7 +315,7 @@ int chitcpd_tcp_state_handle_SYN_SENT(serverinfo_t *si, chisocketentry_t *entry,
     }
     else if (event == TIMEOUT_RTX)
     {
-    /* Your code goes here */
+        return chitcpd_rtx_timeout_handle(si , entry);
     }
     else
         chilog(WARNING, "In SYN_SENT state, received unexpected event.");
@@ -307,7 +349,7 @@ int chitcpd_tcp_state_handle_ESTABLISHED(serverinfo_t *si, chisocketentry_t *ent
     }
     else if (event == TIMEOUT_RTX)
     {
-      /* Your code goes here */
+        return chitcpd_rtx_timeout_handle(si , entry);
     }
     else if (event == TIMEOUT_PST)
     {
@@ -331,7 +373,7 @@ int chitcpd_tcp_state_handle_FIN_WAIT_1(serverinfo_t *si, chisocketentry_t *entr
     }
     else if (event == TIMEOUT_RTX)
     {
-      /* Your code goes here */
+        return chitcpd_rtx_timeout_handle(si , entry);
     }
     else if (event == TIMEOUT_PST)
     {
@@ -356,7 +398,7 @@ int chitcpd_tcp_state_handle_FIN_WAIT_2(serverinfo_t *si, chisocketentry_t *entr
     }
     else if (event == TIMEOUT_RTX)
     {
-      /* Your code goes here */
+        return chitcpd_rtx_timeout_handle(si , entry);
     }
     else
         chilog(WARNING, "In FIN_WAIT_2 state, received unexpected event (%i).", event);
@@ -383,7 +425,7 @@ int chitcpd_tcp_state_handle_CLOSE_WAIT(serverinfo_t *si, chisocketentry_t *entr
     }
     else if (event == TIMEOUT_RTX)
     {
-      /* Your code goes here */
+        return chitcpd_rtx_timeout_handle(si , entry);
     }
     else if (event == TIMEOUT_PST)
     {
@@ -405,7 +447,7 @@ int chitcpd_tcp_state_handle_CLOSING(serverinfo_t *si, chisocketentry_t *entry, 
     }
     else if (event == TIMEOUT_RTX)
     {
-      /* Your code goes here */
+        return chitcpd_rtx_timeout_handle(si , entry);
     }
     else if (event == TIMEOUT_PST)
     {
@@ -434,7 +476,7 @@ int chitcpd_tcp_state_handle_LAST_ACK(serverinfo_t *si, chisocketentry_t *entry,
     }
     else if (event == TIMEOUT_RTX)
     {
-      /* Your code goes here */
+        return chitcpd_rtx_timeout_handle(si , entry);
     }
     else if (event == TIMEOUT_PST)
     {
@@ -450,12 +492,44 @@ int chitcpd_tcp_state_handle_LAST_ACK(serverinfo_t *si, chisocketentry_t *entry,
 /*     Any additional functions you need should go here      */
 /*                                                           */
 
+static void rt_callback (multi_timer_t* mt, single_timer_t* rt_timer, void* aux)
+{
+    rt_callback_args_t *args = (rt_callback_args_t *) aux;
+    chitcpd_timeout(args->si, args->entry, RETRANSMISSION);
+    free(args);
+}
+
+static int chitcpd_rtx_timeout_handle(serverinfo_t *si, chisocketentry_t *entry)
+{
+    tcp_data_t *tcp_data = &entry->socket_state.active.tcp_data;
+    rt_queue_elem_t *rt_elem;
+    pthread_mutex_lock(&tcp_data->rt_lock);
+    rt_elem = tcp_data->rt_queue;
+
+    for (rt_elem = tcp_data->rt_queue; rt_elem; rt_elem = rt_elem->next)
+    {
+        chitcpd_send_tcp_packet(si, entry, rt_elem->packet);
+    }
+    rt_elem = tcp_data->rt_queue;
+    if (rt_elem != NULL)
+    {
+        rt_callback_args_t *callback_args = calloc(1, sizeof(rt_callback_args_t));
+        callback_args->si = si;
+        callback_args->entry = entry;
+        mt_set_timer(tcp_data->mt, RT_TIMER_ID, tcp_data->rto, rt_callback, callback_args);
+    }
+    pthread_mutex_unlock(&tcp_data->rt_lock);
+}
+
 static int format_and_send_packet(serverinfo_t *si, chisocketentry_t *entry,
                      uint8_t *payload, uint16_t payload_len, bool syn, bool fin)
 {
     tcp_data_t *tcp_data = &entry->socket_state.active.tcp_data;
     tcp_packet_t *send_packet = calloc(1, sizeof(tcp_packet_t));
     tcphdr_t *send_header;
+    single_timer_t *rt_timer;
+    int ret;
+
     chitcpd_tcp_packet_create(entry, send_packet, payload, payload_len);
     send_header = TCP_PACKET_HEADER(send_packet);
     send_header->seq = chitcp_htonl(tcp_data->SND_NXT);
@@ -470,8 +544,27 @@ static int format_and_send_packet(serverinfo_t *si, chisocketentry_t *entry,
     {
         send_header->fin = 1;
     }
+
+    /* Send packet and add to retransmission queue */
+    pthread_mutex_lock(&tcp_data->rt_lock);
+    rt_queue_elem_t *rt_elem = calloc(1, sizeof(rt_queue_elem_t));
+    rt_elem->packet = send_packet;
+    clock_gettime(CLOCK_REALTIME, &rt_elem->time_sent);
     chitcpd_send_tcp_packet(si, entry, send_packet);
-    free(send_packet);
+
+    /* If the retransmission queue is empty, then set timer */
+    if (tcp_data->rt_queue == NULL)
+    {
+        rt_callback_args_t *callback_args = calloc (1, sizeof(rt_callback_args_t));
+        callback_args->si = si;
+        callback_args->entry = entry;
+        mt_set_timer(tcp_data->mt, RT_TIMER_ID, tcp_data->rto, rt_callback, callback_args);
+    }
+
+    DL_APPEND(tcp_data->rt_queue, rt_elem);
+
+    pthread_mutex_unlock(&tcp_data->rt_lock);
+
     return CHITCP_OK;
 }
 

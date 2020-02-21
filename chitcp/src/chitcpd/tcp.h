@@ -161,14 +161,15 @@ typedef struct tcp_data
     bool_t closing;
 
     /* Multitimer for this TCP data struct */
-    multi_timer_t mt;
+    multi_timer_t *mt;
 
     /* Retransmission Timeout variables */
     uint64_t rto;     /* Retransmission timeout */
     uint64_t srtt;    /* Smoothed round-trip time */
     uint64_t rttvar;  /* Round-trip time variation */
 
-    /* Retransmission queue */
+    /* Retransmission queue. Earlier sent packets are earlier in
+     * the queue and each newly sent packet is appended to the end */
     rt_queue_elem_t *rt_queue;
     pthread_mutex_t rt_lock;
 
