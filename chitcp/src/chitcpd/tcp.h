@@ -48,6 +48,12 @@
 
 #define TCP_BUFFER_SIZE (4096)
 #define TCP_MSS (536)
+#define TCP_NUM_TIMERS 2
+#define RT_TIMER_ID 0
+#define PERSIST_TIMER_ID 1
+#define MIN_RTO 200000000L
+#define ALPHA 0.125
+#define BETA 0.25
 
 /* TCP events. Roughly correspond to the ones specified in
  * http://tools.ietf.org/html/rfc793#section-3.9 */
@@ -115,6 +121,14 @@ static inline char *tcp_event_str (tcp_event_type_t evt)
     return tcp_event_type_names[evt-1];
 }
 
+typedef struct rt_queue_elem
+{
+    tcp_packet_t *packet;
+    struct timespec time_sent;
+    struct rt_queue_elem *prev;
+    struct rt_queue_elem *next;
+
+} rt_queue_elem_t;
 
 /* TCP data. Roughly corresponds to the variables and buffers
  * one would expect in a Transmission Control Block (as
@@ -145,6 +159,21 @@ typedef struct tcp_data
 
     /* Has a CLOSE been requested on this socket? */
     bool_t closing;
+
+    /* Multitimer for this TCP data struct */
+    multi_timer_t mt;
+
+    /* Retransmission Timeout variables */
+    uint64_t rto;     /* Retransmission timeout */
+    uint64_t srtt;    /* Smoothed round-trip time */
+    uint64_t rttvar;  /* Round-trip time variation */
+
+    /* Retransmission queue */
+    rt_queue_elem_t *rt_queue;
+    pthread_mutex_t rt_lock;
+
 } tcp_data_t;
+
+
 
 #endif /* TCP_H_ */

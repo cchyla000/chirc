@@ -126,8 +126,6 @@ int mt_init(multi_timer_t *mt, uint16_t num_timers)
         timer->id = i;
     }
 
-    // chilog here causes 5 to fail
-
     /* Create multitimer thread */
     if (pthread_create(&multi_timer_thread, NULL, timer_thread_func, (void *) mt) != 0)
     {
@@ -141,9 +139,6 @@ int mt_init(multi_timer_t *mt, uint16_t num_timers)
         mt->multi_timer_thread = multi_timer_thread;
     }
 
-    // chilog here causes all to pass
-
-
     return CHITCP_OK;
 }
 
@@ -151,22 +146,13 @@ int mt_init(multi_timer_t *mt, uint16_t num_timers)
 /* See multitimer.h */
 int mt_free(multi_timer_t *mt)
 {
-    // chilog here causes all to pass
-
-//    pthread_mutex_lock(&mt->mutex);
-//    chilog(DEBUG, "mt_free aquired lock");
     pthread_cancel(mt->multi_timer_thread);
-//    pthread_mutex_unlock(&mt->mutex);
-
-    // chilog here causes all to pass
 
     free(mt->timer_array);
     free(mt->timer_list);
     pthread_mutex_destroy(&mt->mutex);
     pthread_cond_destroy(&mt->cond);
 
-    // Chilog here only fails cancel_inactive_timer
-//    chilog(DEBUG, "END");
     return CHITCP_OK;
 }
 
@@ -365,11 +351,8 @@ static void *timer_thread_func(void *args)
      * its timeout time. Else, do regular wait */
 
     pthread_mutex_lock(&mt->mutex);
-//    chilog(DEBUG, "multi timer thread aquired lock");
     while (1)
     {
-      // chilog here causes all to pass
-
         for (tmp = mt->timer_list; tmp; tmp = tmp->next)
         {
              if (timer_expired(tmp))

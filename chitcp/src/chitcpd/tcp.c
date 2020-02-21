@@ -105,22 +105,42 @@ void tcp_data_init(serverinfo_t *si, chisocketentry_t *entry)
     tcp_data->pending_packets = NULL;
     pthread_mutex_init(&tcp_data->lock_pending_packets, NULL);
     pthread_cond_init(&tcp_data->cv_pending_packets, NULL);
+    pthread_mutex_init( &tcp_data->rt_lock, NULL);
 
     /* Initialization of additional tcp_data_t fields,
      * and creation of retransmission thread, goes here */
 
     tcp_data->RCV_WND = TCP_BUFFER_SIZE;
+
+    tcp_data->rt_queue = NULL;
+    mt_init(&tcp_data->mt, TCP_NUM_TIMERS);
+    tcp_data->rto = MIN_RTO;
+    tcp_data->srtt = 0;
+    tcp_data->rttvar = 0;
 }
 
 void tcp_data_free(serverinfo_t *si, chisocketentry_t *entry)
 {
     tcp_data_t *tcp_data = &entry->socket_state.active.tcp_data;
+    rt_queue_elem_t *rt_elem, *tmp;
+
+    mt_free(&tcp_data->mt);
+
+    pthread_mutex_lock(&tcp_data->rt_lock);
+    DL_FOREACH_SAFE(tcp_data->rt_queue, rt_elem, tmp)
+    {
+        DL_DELETE(tcp_data->rt_queue, rt_elem);
+        free(rt_elem->packet);
+        free(rt_elem);
+    }
+    pthread_mutex_unlock(&tcp_data->rt_lock);
 
     circular_buffer_free(&tcp_data->send);
     circular_buffer_free(&tcp_data->recv);
     chitcp_packet_list_destroy(&tcp_data->pending_packets);
     pthread_mutex_destroy(&tcp_data->lock_pending_packets);
     pthread_cond_destroy(&tcp_data->cv_pending_packets);
+    pthread_mutex_destroy(&tcp_data->rt_lock);
 
     /* Cleanup of additional tcp_data_t fields goes here */
 }
