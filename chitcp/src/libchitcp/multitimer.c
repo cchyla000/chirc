@@ -239,6 +239,7 @@ int mt_cancel_timer(multi_timer_t *mt, uint16_t id)
     {
         LL_DELETE(mt->timer_list, timer);
         timer->active = false;
+        free(timer->callback_args);
         pthread_mutex_unlock(&mt->mutex);
     }
 

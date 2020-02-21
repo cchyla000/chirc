@@ -171,6 +171,8 @@ static void rt_callback (multi_timer_t* mt, single_timer_t* rt_timer, void* aux)
 
 static int chitcpd_rtx_timeout_handle(serverinfo_t *si, chisocketentry_t *entry);
 
+static int rt_queue_removed_acked_segs(serverinfo_t *si, chisocketentry_t *entry, tcp_seq ack);
+
 /* NAME: format_and_send_packet
  *
  * DESCRIPTION: This function handles creating and sending packet with specified
@@ -519,6 +521,49 @@ static int chitcpd_rtx_timeout_handle(serverinfo_t *si, chisocketentry_t *entry)
         mt_set_timer(tcp_data->mt, RT_TIMER_ID, tcp_data->rto, rt_callback, callback_args);
     }
     pthread_mutex_unlock(&tcp_data->rt_lock);
+
+    return CHITCP_OK;
+}
+
+static int rt_queue_removed_acked_segs(serverinfo_t *si, chisocketentry_t *entry, tcp_seq ack)
+{
+    // the timer is active iff it is active on the first element in the rt_queue
+    tcp_data_t *tcp_data = &entry->socket_state.active.tcp_data;
+    tcp_packet_t *p;
+    rt_queue_elem_t *rt_elem;
+    pthread_mutex_lock(&tcp_data->rt_lock);
+
+    rt_elem = tcp_data->rt_queue;
+    p = rt_elem->packet;
+
+    if (SEG_SEQ(p) + SEG_LEN(p) <= ack)
+    {
+        mt_cancel_timer(tcp_data->mt, RT_TIMER_ID);
+        DL_DELETE(tcp_data->rt_queue, rt_elem);
+        for (rt_elem = rt_elem->next; rt_elem; rt_elem = rt_elem->next)
+        {
+            p = rt_elem->packet;
+            if (SEG_SEQ(p) + SEG_LEN(p) > ack)
+            {
+                break;
+            }
+            else
+            {
+                DL_DELETE(tcp_data->rt_queue, rt_elem);
+            }
+        }
+        if (rt_elem != NULL)
+        {
+            rt_callback_args_t *callback_args = calloc(1, sizeof(rt_callback_args_t));
+            callback_args->si = si;
+            callback_args->entry = entry;
+            mt_set_timer(tcp_data->mt, RT_TIMER_ID, tcp_data->rto, rt_callback, callback_args);
+        }
+    }
+
+    pthread_mutex_unlock(&tcp_data->rt_lock);
+
+    return CHITCP_OK;
 }
 
 static int format_and_send_packet(serverinfo_t *si, chisocketentry_t *entry,
@@ -648,6 +693,7 @@ static int chitcpd_tcp_packet_arrival_handle(serverinfo_t *si,
             tcp_data->SND_WND = SEG_WND(packet);
             tcp_data->SND_UNA = SEG_ACK(packet);
             circular_buffer_set_seq_initial(&tcp_data->recv, tcp_data->IRS + 1);
+            rt_queue_removed_acked_segs(si, entry, header->ack);
 
             if (tcp_data->SND_UNA > tcp_data->ISS)
             {
@@ -730,6 +776,7 @@ static int chitcpd_tcp_packet_arrival_handle(serverinfo_t *si,
                 {
                     tcp_data->SND_UNA = SEG_ACK(packet);
                     tcp_data->SND_WND = SEG_WND(packet);
+                    rt_queue_removed_acked_segs(si, entry, header->ack);
                     check_and_send_from_buffer(si, entry);
                     chitcpd_update_tcp_state(si, entry, ESTABLISHED);
                 }
@@ -746,6 +793,7 @@ static int chitcpd_tcp_packet_arrival_handle(serverinfo_t *si,
                  * connection */
                 if (tcp_data->SND_UNA < SEG_ACK(packet))
                 {
+                    rt_queue_removed_acked_segs(si, entry, header->ack);
                     memset(tcp_data, 0, sizeof (tcp_data));
                     chitcpd_update_tcp_state(si, entry, CLOSED);
                     return CHITCP_OK;
@@ -755,6 +803,7 @@ static int chitcpd_tcp_packet_arrival_handle(serverinfo_t *si,
             {
                 /* The only thing that can arrive here is a retransmission of
                  * connection's FIN. Acknowledge it and restart timeout */
+                rt_queue_removed_acked_segs(si, entry, header->ack);
                 format_and_send_packet(si, entry, NULL, 0, false, false);
                 /* Restart the 2 MSL timeout here */
             }
@@ -769,6 +818,7 @@ static int chitcpd_tcp_packet_arrival_handle(serverinfo_t *si,
                      are acknowledged as a result of this: */
                     tcp_data->SND_UNA = SEG_ACK(packet);
                     tcp_data->SND_WND = SEG_WND(packet);
+                    rt_queue_removed_acked_segs(si, entry, header->ack);
                     check_and_send_from_buffer(si, entry);
                 }
                 else if (SEG_ACK(packet) < tcp_data->SND_UNA)
