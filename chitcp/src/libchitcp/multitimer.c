@@ -153,10 +153,10 @@ int mt_free(multi_timer_t *mt)
 {
     // chilog here causes all to pass
 
-    pthread_mutex_lock(&mt->mutex);
-    chilog(DEBUG, "mt_free aquired lock");
+//    pthread_mutex_lock(&mt->mutex);
+//    chilog(DEBUG, "mt_free aquired lock");
     pthread_cancel(mt->multi_timer_thread);
-    pthread_mutex_unlock(&mt->mutex);
+//    pthread_mutex_unlock(&mt->mutex);
 
     // chilog here causes all to pass
 
@@ -166,7 +166,7 @@ int mt_free(multi_timer_t *mt)
     pthread_cond_destroy(&mt->cond);
 
     // Chilog here only fails cancel_inactive_timer
-    chilog(DEBUG, "END");
+//    chilog(DEBUG, "END");
     return CHITCP_OK;
 }
 
@@ -365,7 +365,7 @@ static void *timer_thread_func(void *args)
      * its timeout time. Else, do regular wait */
 
     pthread_mutex_lock(&mt->mutex);
-    chilog(DEBUG, "multi timer thread aquired lock");
+//    chilog(DEBUG, "multi timer thread aquired lock");
     while (1)
     {
       // chilog here causes all to pass
