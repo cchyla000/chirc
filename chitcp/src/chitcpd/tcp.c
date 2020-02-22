@@ -649,7 +649,7 @@ static int format_and_send_packet(serverinfo_t *si, chisocketentry_t *entry,
     {
         send_header->fin = 1;
     }
-    chilog(INFO, "format and send packet, seg seq = %u, seg len = %u, ack seq = %u", SEG_SEQ(send_packet), SEG_LEN(send_packet), send_header->ack_seq);
+    chilog(INFO, "format and send packet, seg seq = %u, seg len = %u, ack seq = %u", SEG_SEQ(send_packet), SEG_LEN(send_packet), tcp_data->RCV_NXT);
     /* Send packet and add to retransmission queue */
     pthread_mutex_lock(&tcp_data->rt_lock);
     rt_queue_elem_t *rt_elem = calloc(1, sizeof(rt_queue_elem_t));
@@ -757,7 +757,7 @@ static int chitcpd_tcp_packet_arrival_handle(serverinfo_t *si,
             tcp_data->SND_WND = SEG_WND(packet);
             tcp_data->SND_UNA = SEG_ACK(packet);
             circular_buffer_set_seq_initial(&tcp_data->recv, tcp_data->IRS + 1);
-            rt_queue_removed_acked_segs(si, entry, header->ack_seq);
+            rt_queue_removed_acked_segs(si, entry, SEG_ACK(packet));
 
             if (tcp_data->SND_UNA > tcp_data->ISS)
             {
@@ -810,7 +810,7 @@ static int chitcpd_tcp_packet_arrival_handle(serverinfo_t *si,
                                               <= seq_end && seq_end < recv_end);
             }
         }
-        if (!acceptable)
+        if (!acceptable || (tcp_data->RCV_NXT != SEG_SEQ(packet)))
         {
             /* <SEQ=SND.NXT><ACK=RCV.NXT><CTL=ACK> */
             format_and_send_packet(si, entry, NULL, 0, false, false);
@@ -840,7 +840,7 @@ static int chitcpd_tcp_packet_arrival_handle(serverinfo_t *si,
                 {
                     tcp_data->SND_UNA = SEG_ACK(packet);
                     tcp_data->SND_WND = SEG_WND(packet);
-                    rt_queue_removed_acked_segs(si, entry, header->ack_seq);
+                    rt_queue_removed_acked_segs(si, entry, SEG_ACK(packet));
                     check_and_send_from_buffer(si, entry);
                     chitcpd_update_tcp_state(si, entry, ESTABLISHED);
                 }
@@ -857,7 +857,7 @@ static int chitcpd_tcp_packet_arrival_handle(serverinfo_t *si,
                  * connection */
                 if (tcp_data->SND_UNA < SEG_ACK(packet))
                 {
-                    rt_queue_removed_acked_segs(si, entry, header->ack_seq);
+                    rt_queue_removed_acked_segs(si, entry, SEG_ACK(packet));
                     memset(tcp_data, 0, sizeof (tcp_data));
                     chitcpd_update_tcp_state(si, entry, CLOSED);
                     return CHITCP_OK;
@@ -867,7 +867,7 @@ static int chitcpd_tcp_packet_arrival_handle(serverinfo_t *si,
             {
                 /* The only thing that can arrive here is a retransmission of
                  * connection's FIN. Acknowledge it and restart timeout */
-                rt_queue_removed_acked_segs(si, entry, header->ack_seq);
+                rt_queue_removed_acked_segs(si, entry, SEG_ACK(packet));
                 format_and_send_packet(si, entry, NULL, 0, false, false);
                 /* Restart the 2 MSL timeout here */
             }
@@ -882,7 +882,7 @@ static int chitcpd_tcp_packet_arrival_handle(serverinfo_t *si,
                      are acknowledged as a result of this: */
                     tcp_data->SND_UNA = SEG_ACK(packet);
                     tcp_data->SND_WND = SEG_WND(packet);
-                    rt_queue_removed_acked_segs(si, entry, header->ack_seq);
+                    rt_queue_removed_acked_segs(si, entry, SEG_ACK(packet));
                     check_and_send_from_buffer(si, entry);
                 }
                 else if (SEG_ACK(packet) < tcp_data->SND_UNA)
@@ -890,7 +890,7 @@ static int chitcpd_tcp_packet_arrival_handle(serverinfo_t *si,
                     /* Duplicate, can ignore */
                     chilog(INFO, "SEG_ACK < SND_UNA: duplicate that we can ignore");
                 }
-                else if (SEG_ACK(packet) > tcp_data->SND_UNA)
+                else if (SEG_ACK(packet) > tcp_data->SND_NXT)
                 {
                     /* Remote is ACKing something not yet sent; so send an ACK
                      * and return */

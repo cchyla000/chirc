@@ -196,7 +196,7 @@ int mt_set_timer(multi_timer_t *mt, uint16_t id, uint64_t timeout, mt_callback_f
         timer->callback = callback;
         timer->callback_args = callback_args;
         clock_gettime(CLOCK_REALTIME, &timer->timeout);\
-        chilog(INFO, "real time nsec = %d, sec = %d, rto for nsec = %d", timer->timeout.tv_nsec, timer->timeout.tv_sec, timeout);
+        chilog(INFO, "real time nsec = %u, sec = %u, rto for nsec = %u", timer->timeout.tv_nsec, timer->timeout.tv_sec, timeout);
         tmp_nsec = timeout + timer->timeout.tv_nsec;
         timer->timeout.tv_nsec = tmp_nsec % SECOND;
         timer->timeout.tv_sec += (tmp_nsec / SECOND);
