@@ -115,7 +115,7 @@ void tcp_data_init(serverinfo_t *si, chisocketentry_t *entry)
     tcp_data->rt_queue = NULL;
     tcp_data->mt = calloc(1, sizeof(multi_timer_t));
     mt_init(tcp_data->mt, TCP_NUM_TIMERS);
-    tcp_data->rto = MIN_RTO;
+    tcp_data->rto = 3 * MIN_RTO;
     tcp_data->srtt = 0;
     tcp_data->rttvar = 0;
 }
@@ -173,6 +173,11 @@ typedef struct rt_callback_args
 static void rt_callback (multi_timer_t* mt, single_timer_t* rt_timer, void* aux);
 
 static int chitcpd_rtx_timeout_handle(serverinfo_t *si, chisocketentry_t *entry);
+
+/*
+ * Note: must be called with rto_lock already locked
+ */
+static int update_rtt(tcp_data_t *tcp_data, rt_queue_elem_t *rt_elem);
 
 static int rt_queue_removed_acked_segs(serverinfo_t *si, chisocketentry_t *entry, tcp_seq ack_seq);
 
@@ -513,6 +518,7 @@ static int chitcpd_rtx_timeout_handle(serverinfo_t *si, chisocketentry_t *entry)
     tcp_data_t *tcp_data = &entry->socket_state.active.tcp_data;
     rt_queue_elem_t *rt_elem;
     pthread_mutex_lock(&tcp_data->rt_lock);
+    tcp_data->rto *= 2;
     rt_elem = tcp_data->rt_queue;
 
     for (rt_elem = tcp_data->rt_queue; rt_elem; rt_elem = rt_elem->next)
@@ -534,6 +540,41 @@ static int chitcpd_rtx_timeout_handle(serverinfo_t *si, chisocketentry_t *entry)
     return CHITCP_OK;
 }
 
+static int update_rtt(tcp_data_t *tcp_data, rt_queue_elem_t *rt_elem)
+{
+    struct timespec now, diff;
+    clock_gettime(CLOCK_REALTIME, &now);
+    timespec_subtract(&diff, &now, &rt_elem->time_sent);
+    uint64_t rtt = (diff.tv_sec * SECOND) + diff.tv_nsec;
+    chilog(INFO, "old rtt is %u", tcp_data->rto);
+    if (tcp_data->srtt == 0 && tcp_data->rttvar == 0)  // First RTT measurement
+    {
+        tcp_data->srtt = rtt;
+        tcp_data->rttvar = rtt / 2;
+        tcp_data->rto = tcp_data->srtt + MAX(CLOCK_GRANULARITY, (4 * tcp_data->rttvar));
+    }
+    else
+    {
+        if (tcp_data->srtt > rtt)
+        {
+            tcp_data->rttvar = (1 - BETA) * (tcp_data->rttvar + (BETA * (tcp_data->srtt - rtt)));
+        }
+        else
+        {
+            tcp_data->rttvar = (1 - BETA) * (tcp_data->rttvar + (BETA * (rtt - tcp_data->srtt)));
+        }
+
+        tcp_data->srtt = (1 - ALPHA) * (tcp_data->srtt + (ALPHA * rtt));
+        tcp_data->rto = tcp_data->srtt + MAX(CLOCK_GRANULARITY, 4 * (tcp_data->rttvar));
+        if (tcp_data->rto < MIN_RTO)
+        {
+            tcp_data->rto = MIN_RTO;
+        }
+    }
+    chilog(INFO, "new rtt is %u", tcp_data->rto);
+    return CHITCP_OK;
+}
+
 static int rt_queue_removed_acked_segs(serverinfo_t *si, chisocketentry_t *entry, tcp_seq ack_seq)
 {
     chilog(INFO, "in rt_queue_removed_ack_segs");
@@ -551,6 +592,7 @@ static int rt_queue_removed_acked_segs(serverinfo_t *si, chisocketentry_t *entry
         if (SEG_SEQ(p) + SEG_LEN(p) <= ack_seq)
         {
             chilog(INFO, "rt_queue_removed_ack_segs canceling timer and moving to next in rt_queue");
+            update_rtt(tcp_data, rt_elem);
             mt_cancel_timer(tcp_data->mt, RT_TIMER_ID);
             DL_DELETE(tcp_data->rt_queue, rt_elem);
             for (rt_elem = rt_elem->next; rt_elem; rt_elem = rt_elem->next)
