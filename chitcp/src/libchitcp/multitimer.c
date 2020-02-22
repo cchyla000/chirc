@@ -147,12 +147,9 @@ int mt_init(multi_timer_t *mt, uint16_t num_timers)
 int mt_free(multi_timer_t *mt)
 {
     pthread_cancel(mt->multi_timer_thread);
-
     free(mt->timer_array);
-    free(mt->timer_list);
     pthread_mutex_destroy(&mt->mutex);
     pthread_cond_destroy(&mt->cond);
-
     return CHITCP_OK;
 }
 
@@ -200,7 +197,8 @@ int mt_set_timer(multi_timer_t *mt, uint16_t id, uint64_t timeout, mt_callback_f
         timer->active = true;
         timer->callback = callback;
         timer->callback_args = callback_args;
-        clock_gettime(CLOCK_REALTIME, &timer->timeout);
+        clock_gettime(CLOCK_REALTIME, &timer->timeout);\
+        chilog(INFO, "real time nsec = %d, sec = %d, rto for nsec = %d", timer->timeout.tv_nsec, timer->timeout.tv_sec, timeout);
         tmp_nsec = timeout + timer->timeout.tv_nsec;
         timer->timeout.tv_nsec = tmp_nsec % NANO_PER_SEC;
         timer->timeout.tv_sec += (tmp_nsec / NANO_PER_SEC);
@@ -237,11 +235,14 @@ int mt_cancel_timer(multi_timer_t *mt, uint16_t id)
     }
     else
     {
+        chilog(INFO, "canceling timer");
         LL_DELETE(mt->timer_list, timer);
         timer->active = false;
-        free(timer->callback_args);
+//        free(timer->callback_args);
         pthread_mutex_unlock(&mt->mutex);
     }
+
+    chilog(INFO, "exiting cancel timer");
 
     return CHITCP_OK;
 }

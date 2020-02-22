@@ -122,6 +122,7 @@ void tcp_data_init(serverinfo_t *si, chisocketentry_t *entry)
 
 void tcp_data_free(serverinfo_t *si, chisocketentry_t *entry)
 {
+    chilog(INFO, "in tcp_data_free");
     tcp_data_t *tcp_data = &entry->socket_state.active.tcp_data;
     rt_queue_elem_t *rt_elem, *tmp;
 
@@ -145,6 +146,8 @@ void tcp_data_free(serverinfo_t *si, chisocketentry_t *entry)
     pthread_mutex_destroy(&tcp_data->rt_lock);
 
     /* Cleanup of additional tcp_data_t fields goes here */
+    chilog(INFO, "Exiting tcp_data_free");
+
 }
 
 typedef struct rt_callback_args
@@ -171,7 +174,7 @@ static void rt_callback (multi_timer_t* mt, single_timer_t* rt_timer, void* aux)
 
 static int chitcpd_rtx_timeout_handle(serverinfo_t *si, chisocketentry_t *entry);
 
-static int rt_queue_removed_acked_segs(serverinfo_t *si, chisocketentry_t *entry, tcp_seq ack);
+static int rt_queue_removed_acked_segs(serverinfo_t *si, chisocketentry_t *entry, tcp_seq ack_seq);
 
 /* NAME: format_and_send_packet
  *
@@ -240,18 +243,19 @@ int chitcpd_tcp_state_handle_CLOSED(serverinfo_t *si, chisocketentry_t *entry, t
 
             tcp_packet_t *packet = calloc(1, sizeof(tcp_packet_t));
             tcphdr_t *header;
-            uint8_t payload = 0;
-            chitcpd_tcp_packet_create(entry, packet, &payload, 1);
+            chitcpd_tcp_packet_create(entry, packet, NULL, 0);
             header = TCP_PACKET_HEADER(packet);
             header->seq = chitcp_htonl(tcp_data->ISS);
             header->win = chitcp_htons(tcp_data->RCV_WND);
             header->syn = 1;
 
+            chilog(INFO, "handle CLOSED sending syn");
             /* Send packet and add to retransmission queue */
             pthread_mutex_lock(&tcp_data->rt_lock);
             rt_queue_elem_t *rt_elem = calloc(1, sizeof(rt_queue_elem_t));
             rt_elem->packet = packet;
             clock_gettime(CLOCK_REALTIME, &rt_elem->time_sent);
+            chilog(INFO, "seg_seq = %u, seg_len = %u", SEG_SEQ(packet), SEG_LEN(packet));
             chitcpd_send_tcp_packet(si, entry, packet);
 
             /* If the retransmission queue is empty, then set timer */
@@ -267,6 +271,7 @@ int chitcpd_tcp_state_handle_CLOSED(serverinfo_t *si, chisocketentry_t *entry, t
             pthread_mutex_unlock(&tcp_data->rt_lock);
 
             chitcpd_update_tcp_state(si, entry, SYN_SENT);
+            chilog(INFO, "exiting handle CLOSED");
             return CHITCP_OK;
         }
 
@@ -496,13 +501,15 @@ int chitcpd_tcp_state_handle_LAST_ACK(serverinfo_t *si, chisocketentry_t *entry,
 
 static void rt_callback (multi_timer_t* mt, single_timer_t* rt_timer, void* aux)
 {
+    chilog(INFO, "in rt_callback");
     rt_callback_args_t *args = (rt_callback_args_t *) aux;
     chitcpd_timeout(args->si, args->entry, RETRANSMISSION);
-    free(args);
+//    free(args);
 }
 
 static int chitcpd_rtx_timeout_handle(serverinfo_t *si, chisocketentry_t *entry)
 {
+    chilog(INFO, "in rtx timeout handle");
     tcp_data_t *tcp_data = &entry->socket_state.active.tcp_data;
     rt_queue_elem_t *rt_elem;
     pthread_mutex_lock(&tcp_data->rt_lock);
@@ -522,11 +529,14 @@ static int chitcpd_rtx_timeout_handle(serverinfo_t *si, chisocketentry_t *entry)
     }
     pthread_mutex_unlock(&tcp_data->rt_lock);
 
+    chilog(INFO, "exiting rtx timeout handler");
+
     return CHITCP_OK;
 }
 
-static int rt_queue_removed_acked_segs(serverinfo_t *si, chisocketentry_t *entry, tcp_seq ack)
+static int rt_queue_removed_acked_segs(serverinfo_t *si, chisocketentry_t *entry, tcp_seq ack_seq)
 {
+    chilog(INFO, "in rt_queue_removed_ack_segs");
     // the timer is active iff it is active on the first element in the rt_queue
     tcp_data_t *tcp_data = &entry->socket_state.active.tcp_data;
     tcp_packet_t *p;
@@ -534,30 +544,37 @@ static int rt_queue_removed_acked_segs(serverinfo_t *si, chisocketentry_t *entry
     pthread_mutex_lock(&tcp_data->rt_lock);
 
     rt_elem = tcp_data->rt_queue;
-    p = rt_elem->packet;
-
-    if (SEG_SEQ(p) + SEG_LEN(p) <= ack)
+    if (rt_elem != NULL)
     {
-        mt_cancel_timer(tcp_data->mt, RT_TIMER_ID);
-        DL_DELETE(tcp_data->rt_queue, rt_elem);
-        for (rt_elem = rt_elem->next; rt_elem; rt_elem = rt_elem->next)
+        p = rt_elem->packet;
+        chilog(INFO, "seg_seq = %u, seg_len = %u, ack = %u", SEG_SEQ(p), SEG_LEN(p), ack_seq);
+        if (SEG_SEQ(p) + SEG_LEN(p) <= ack_seq)
         {
-            p = rt_elem->packet;
-            if (SEG_SEQ(p) + SEG_LEN(p) > ack)
+            chilog(INFO, "rt_queue_removed_ack_segs canceling timer and moving to next in rt_queue");
+            mt_cancel_timer(tcp_data->mt, RT_TIMER_ID);
+            DL_DELETE(tcp_data->rt_queue, rt_elem);
+            for (rt_elem = rt_elem->next; rt_elem; rt_elem = rt_elem->next)
             {
-                break;
+                p = rt_elem->packet;
+                if (SEG_SEQ(p) + SEG_LEN(p) > ack_seq)
+                {
+                    chilog(INFO, "ack did not acknowledge next packet in rt_queue");
+                    break;
+                }
+                else
+                {
+                    chilog(INFO, "Deleting packet from rt_queue");
+                    DL_DELETE(tcp_data->rt_queue, rt_elem);
+                }
             }
-            else
+            if (rt_elem != NULL)
             {
-                DL_DELETE(tcp_data->rt_queue, rt_elem);
+                chilog(INFO, "resetting timer to next in rt_queue");
+                rt_callback_args_t *callback_args = calloc(1, sizeof(rt_callback_args_t));
+                callback_args->si = si;
+                callback_args->entry = entry;
+                mt_set_timer(tcp_data->mt, RT_TIMER_ID, tcp_data->rto, rt_callback, callback_args);
             }
-        }
-        if (rt_elem != NULL)
-        {
-            rt_callback_args_t *callback_args = calloc(1, sizeof(rt_callback_args_t));
-            callback_args->si = si;
-            callback_args->entry = entry;
-            mt_set_timer(tcp_data->mt, RT_TIMER_ID, tcp_data->rto, rt_callback, callback_args);
         }
     }
 
@@ -569,6 +586,7 @@ static int rt_queue_removed_acked_segs(serverinfo_t *si, chisocketentry_t *entry
 static int format_and_send_packet(serverinfo_t *si, chisocketentry_t *entry,
                      uint8_t *payload, uint16_t payload_len, bool syn, bool fin)
 {
+    chilog(INFO, "in format and send packet");
     tcp_data_t *tcp_data = &entry->socket_state.active.tcp_data;
     tcp_packet_t *send_packet = calloc(1, sizeof(tcp_packet_t));
     tcphdr_t *send_header;
@@ -589,7 +607,7 @@ static int format_and_send_packet(serverinfo_t *si, chisocketentry_t *entry,
     {
         send_header->fin = 1;
     }
-
+    chilog(INFO, "format and send packet, seg seq = %u, seg len = %u, ack seq = %u", SEG_SEQ(send_packet), SEG_LEN(send_packet), send_header->ack_seq);
     /* Send packet and add to retransmission queue */
     pthread_mutex_lock(&tcp_data->rt_lock);
     rt_queue_elem_t *rt_elem = calloc(1, sizeof(rt_queue_elem_t));
@@ -600,6 +618,7 @@ static int format_and_send_packet(serverinfo_t *si, chisocketentry_t *entry,
     /* If the retransmission queue is empty, then set timer */
     if (tcp_data->rt_queue == NULL)
     {
+        chilog(INFO, "rt queue is null");
         rt_callback_args_t *callback_args = calloc (1, sizeof(rt_callback_args_t));
         callback_args->si = si;
         callback_args->entry = entry;
@@ -609,6 +628,8 @@ static int format_and_send_packet(serverinfo_t *si, chisocketentry_t *entry,
     DL_APPEND(tcp_data->rt_queue, rt_elem);
 
     pthread_mutex_unlock(&tcp_data->rt_lock);
+
+    chilog(INFO, "exiting format and send packet");
 
     return CHITCP_OK;
 }
@@ -636,6 +657,7 @@ static int check_and_send_from_buffer(serverinfo_t *si, chisocketentry_t *entry)
 static int chitcpd_tcp_packet_arrival_handle(serverinfo_t *si,
                                                         chisocketentry_t *entry)
 {
+    chilog(INFO, "In packet arrival handler");
     tcp_data_t *tcp_data = &entry->socket_state.active.tcp_data;
     tcp_packet_t *packet = NULL;
     tcphdr_t *header = NULL;
@@ -693,7 +715,7 @@ static int chitcpd_tcp_packet_arrival_handle(serverinfo_t *si,
             tcp_data->SND_WND = SEG_WND(packet);
             tcp_data->SND_UNA = SEG_ACK(packet);
             circular_buffer_set_seq_initial(&tcp_data->recv, tcp_data->IRS + 1);
-            rt_queue_removed_acked_segs(si, entry, header->ack);
+            rt_queue_removed_acked_segs(si, entry, header->ack_seq);
 
             if (tcp_data->SND_UNA > tcp_data->ISS)
             {
@@ -776,7 +798,7 @@ static int chitcpd_tcp_packet_arrival_handle(serverinfo_t *si,
                 {
                     tcp_data->SND_UNA = SEG_ACK(packet);
                     tcp_data->SND_WND = SEG_WND(packet);
-                    rt_queue_removed_acked_segs(si, entry, header->ack);
+                    rt_queue_removed_acked_segs(si, entry, header->ack_seq);
                     check_and_send_from_buffer(si, entry);
                     chitcpd_update_tcp_state(si, entry, ESTABLISHED);
                 }
@@ -793,7 +815,7 @@ static int chitcpd_tcp_packet_arrival_handle(serverinfo_t *si,
                  * connection */
                 if (tcp_data->SND_UNA < SEG_ACK(packet))
                 {
-                    rt_queue_removed_acked_segs(si, entry, header->ack);
+                    rt_queue_removed_acked_segs(si, entry, header->ack_seq);
                     memset(tcp_data, 0, sizeof (tcp_data));
                     chitcpd_update_tcp_state(si, entry, CLOSED);
                     return CHITCP_OK;
@@ -803,7 +825,7 @@ static int chitcpd_tcp_packet_arrival_handle(serverinfo_t *si,
             {
                 /* The only thing that can arrive here is a retransmission of
                  * connection's FIN. Acknowledge it and restart timeout */
-                rt_queue_removed_acked_segs(si, entry, header->ack);
+                rt_queue_removed_acked_segs(si, entry, header->ack_seq);
                 format_and_send_packet(si, entry, NULL, 0, false, false);
                 /* Restart the 2 MSL timeout here */
             }
@@ -818,13 +840,13 @@ static int chitcpd_tcp_packet_arrival_handle(serverinfo_t *si,
                      are acknowledged as a result of this: */
                     tcp_data->SND_UNA = SEG_ACK(packet);
                     tcp_data->SND_WND = SEG_WND(packet);
-                    rt_queue_removed_acked_segs(si, entry, header->ack);
+                    rt_queue_removed_acked_segs(si, entry, header->ack_seq);
                     check_and_send_from_buffer(si, entry);
                 }
                 else if (SEG_ACK(packet) < tcp_data->SND_UNA)
                 {
                     /* Duplicate, can ignore */
-                    chilog(DEBUG, "SEG_ACK < SND_UNA: duplicate that we can ignore");
+                    chilog(INFO, "SEG_ACK < SND_UNA: duplicate that we can ignore");
                 }
                 else if (SEG_ACK(packet) > tcp_data->SND_UNA)
                 {
