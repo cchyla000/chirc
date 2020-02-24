@@ -699,12 +699,14 @@ static int check_and_send_from_buffer(serverinfo_t *si, chisocketentry_t *entry)
     /* check that there are items to read and that effective window > 0 */
     while ((circular_buffer_count(&tcp_data->send) > 0) && (effective_window > 0))
     {
+        chilog(INFO, "ITERATING THROUGH check_and_send_from_buffer");
         len = MIN(effective_window, TCP_MSS);
         nbytes = circular_buffer_read(&tcp_data->send, data_to_send, len, true);
-        chilog(INFO, "send packet 1");
+        chilog(INFO, "send packet 1: nbytes sent is %d", nbytes);
         format_and_send_packet(si, entry, data_to_send, nbytes, false, false);
         tcp_data->SND_NXT += nbytes;
         effective_window = tcp_data->SND_WND - (tcp_data->SND_NXT - tcp_data->SND_UNA);
+        chilog(INFO, "NEW CICULAR BUFFER COUNT IS %u", circular_buffer_count(&tcp_data->send));
     }
 
     return CHITCP_OK;
@@ -828,7 +830,7 @@ static int chitcpd_tcp_packet_arrival_handle(serverinfo_t *si,
                                               <= seq_end && seq_end < recv_end);
             }
         }
-        if (!acceptable || (tcp_data->RCV_NXT != SEG_SEQ(packet)))
+        if ((!acceptable) || (tcp_data->RCV_NXT != SEG_SEQ(packet)))
         {
             /* <SEQ=SND.NXT><ACK=RCV.NXT><CTL=ACK> */
             chilog(INFO, "RCV_NXT is %u but SEQ is %u, so drop packet", tcp_data->RCV_NXT, SEG_SEQ(packet));
