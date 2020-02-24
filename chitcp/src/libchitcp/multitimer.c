@@ -355,7 +355,7 @@ static void *timer_thread_func(void *args)
     {
         for (tmp = mt->timer_list; tmp; tmp = tmp->next)
         {
-             if (timer_expired(tmp))
+             if (tmp->active && timer_expired(tmp))
              {
                   LL_DELETE(mt->timer_list, tmp);
                   tmp->active = false;

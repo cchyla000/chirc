@@ -375,13 +375,15 @@ int chitcpd_tcp_state_handle_ESTABLISHED(serverinfo_t *si, chisocketentry_t *ent
 
 int chitcpd_tcp_state_handle_FIN_WAIT_1(serverinfo_t *si, chisocketentry_t *entry, tcp_event_type_t event)
 {
+    tcp_data_t *tcp_data = &entry->socket_state.active.tcp_data;
     if (event == PACKET_ARRIVAL)
     {
         return chitcpd_tcp_packet_arrival_handle(si, entry);
     }
     else if (event == APPLICATION_RECEIVE)
     {
-        /* Your code goes here */
+        tcp_data->RCV_WND = circular_buffer_available(&tcp_data->recv);
+        tcp_data->RCV_NXT = circular_buffer_next(&tcp_data->recv);
     }
     else if (event == TIMEOUT_RTX)
     {
@@ -400,13 +402,15 @@ int chitcpd_tcp_state_handle_FIN_WAIT_1(serverinfo_t *si, chisocketentry_t *entr
 
 int chitcpd_tcp_state_handle_FIN_WAIT_2(serverinfo_t *si, chisocketentry_t *entry, tcp_event_type_t event)
 {
+    tcp_data_t *tcp_data = &entry->socket_state.active.tcp_data;
     if (event == PACKET_ARRIVAL)
     {
         return chitcpd_tcp_packet_arrival_handle(si, entry);
     }
     else if (event == APPLICATION_RECEIVE)
     {
-        /* Your code goes here */
+        tcp_data->RCV_WND = circular_buffer_available(&tcp_data->recv);
+        tcp_data->RCV_NXT = circular_buffer_next(&tcp_data->recv);
     }
     else if (event == TIMEOUT_RTX)
     {
@@ -622,6 +626,10 @@ static int rt_queue_removed_acked_segs(serverinfo_t *si, chisocketentry_t *entry
 
                 mt_set_timer(tcp_data->mt, RT_TIMER_ID, tcp_data->rto, rt_callback, callback_args);
             }
+            else
+            {
+                chilog(INFO, "RT_QUEUE IS EMPTY");
+            }
         }
     }
 
@@ -693,6 +701,7 @@ static int check_and_send_from_buffer(serverinfo_t *si, chisocketentry_t *entry)
     {
         len = MIN(effective_window, TCP_MSS);
         nbytes = circular_buffer_read(&tcp_data->send, data_to_send, len, true);
+        chilog(INFO, "send packet 1");
         format_and_send_packet(si, entry, data_to_send, nbytes, false, false);
         tcp_data->SND_NXT += nbytes;
         effective_window = tcp_data->SND_WND - (tcp_data->SND_NXT - tcp_data->SND_UNA);
@@ -735,6 +744,7 @@ static int chitcpd_tcp_packet_arrival_handle(serverinfo_t *si,
             tcp_data->SND_WND = SEG_WND(packet);
             circular_buffer_set_seq_initial(&tcp_data->recv, tcp_data->IRS + 1);
             circular_buffer_set_seq_initial(&tcp_data->send, iss + 1);
+            chilog(INFO, "send packet 2");
             format_and_send_packet(si, entry, NULL, 0, true, false);
             tcp_data->SND_UNA = iss;
             tcp_data->SND_NXT = iss + 1;
@@ -762,16 +772,19 @@ static int chitcpd_tcp_packet_arrival_handle(serverinfo_t *si,
             tcp_data->SND_WND = SEG_WND(packet);
 //            tcp_data->SND_UNA = SEG_ACK(packet);
             circular_buffer_set_seq_initial(&tcp_data->recv, tcp_data->IRS + 1);
+            chilog(INFO, "rt_queue remove 1");
             rt_queue_removed_acked_segs(si, entry, SEG_ACK(packet));
 
             if (tcp_data->SND_UNA > tcp_data->ISS)
             {
+                chilog(INFO, "send packet 3");
                 format_and_send_packet(si, entry, NULL, 0, false, false);
                 chitcpd_update_tcp_state(si, entry, ESTABLISHED);
                 return CHITCP_OK;
             }
             else
             {
+                chilog(INFO, "send packet 5");
                 format_and_send_packet(si, entry, NULL, 0, true, false);
                 tcp_data->SND_NXT += 1;
                 chitcpd_update_tcp_state(si, entry, SYN_RCVD);
@@ -819,6 +832,7 @@ static int chitcpd_tcp_packet_arrival_handle(serverinfo_t *si,
         {
             /* <SEQ=SND.NXT><ACK=RCV.NXT><CTL=ACK> */
             chilog(INFO, "RCV_NXT is %u but SEQ is %u, so drop packet", tcp_data->RCV_NXT, SEG_SEQ(packet));
+            chilog(INFO, "send packet 6");
             format_and_send_packet(si, entry, NULL, 0, false, false);
             return CHITCP_OK;
         }
@@ -846,6 +860,7 @@ static int chitcpd_tcp_packet_arrival_handle(serverinfo_t *si,
                 {
 //                    tcp_data->SND_UNA = SEG_ACK(packet);
                     tcp_data->SND_WND = SEG_WND(packet);
+                    chilog(INFO, "rt_queue remove 2");
                     rt_queue_removed_acked_segs(si, entry, SEG_ACK(packet));
                     check_and_send_from_buffer(si, entry);
                     chitcpd_update_tcp_state(si, entry, ESTABLISHED);
@@ -863,6 +878,7 @@ static int chitcpd_tcp_packet_arrival_handle(serverinfo_t *si,
                  * connection */
                 if (tcp_data->SND_UNA < SEG_ACK(packet))
                 {
+                    chilog(INFO, "rt_queue remove 3");
                     rt_queue_removed_acked_segs(si, entry, SEG_ACK(packet));
                     memset(tcp_data, 0, sizeof (tcp_data));
                     chitcpd_update_tcp_state(si, entry, CLOSED);
@@ -873,7 +889,9 @@ static int chitcpd_tcp_packet_arrival_handle(serverinfo_t *si,
             {
                 /* The only thing that can arrive here is a retransmission of
                  * connection's FIN. Acknowledge it and restart timeout */
+                chilog(INFO, "rt_queue remove 4");
                 rt_queue_removed_acked_segs(si, entry, SEG_ACK(packet));
+                chilog(INFO, "send packet 7");
                 format_and_send_packet(si, entry, NULL, 0, false, false);
                 /* Restart the 2 MSL timeout here */
             }
@@ -888,6 +906,7 @@ static int chitcpd_tcp_packet_arrival_handle(serverinfo_t *si,
                      are acknowledged as a result of this: */
 //                    tcp_data->SND_UNA = SEG_ACK(packet);
                     tcp_data->SND_WND = SEG_WND(packet);
+                    chilog(INFO, "rt_queue remove 5");
                     rt_queue_removed_acked_segs(si, entry, SEG_ACK(packet));
                     check_and_send_from_buffer(si, entry);
                 }
@@ -900,6 +919,7 @@ static int chitcpd_tcp_packet_arrival_handle(serverinfo_t *si,
                 {
                     /* Remote is ACKing something not yet sent; so send an ACK
                      * and return */
+                    chilog(INFO, "send packet 8");
                     format_and_send_packet(si, entry, NULL, 0, false, false);
                     return CHITCP_OK;
                 }
@@ -919,6 +939,8 @@ static int chitcpd_tcp_packet_arrival_handle(serverinfo_t *si,
                 {
                     /* If the retransmission queue is empty, the user's CLOSE
                        can be acknowledged, but do not delete TCB */
+
+
                 }
                 else if (entry->tcp_state == CLOSING)
                 {
@@ -950,6 +972,7 @@ static int chitcpd_tcp_packet_arrival_handle(serverinfo_t *si,
                       TCP_PAYLOAD_START(packet), TCP_PAYLOAD_LEN(packet), true);
                     tcp_data->RCV_NXT = circular_buffer_next(&tcp_data->recv);
                     tcp_data->RCV_WND = circular_buffer_available(&tcp_data->recv);
+                    chilog(INFO, "send packet 9");
                     format_and_send_packet(si, entry, NULL, 0, false, false);
                     break;
                 case CLOSE_WAIT:
@@ -974,6 +997,7 @@ static int chitcpd_tcp_packet_arrival_handle(serverinfo_t *si,
             /* Signal the user "connection closing"
              * Return any pending RECEIVES with the same message */
             tcp_data->RCV_NXT = SEG_SEQ(packet) + 1;
+            chilog(INFO, "send packet 10");
             format_and_send_packet(si, entry, NULL, 0, false, false);
 
             switch (entry->tcp_state)
@@ -985,6 +1009,7 @@ static int chitcpd_tcp_packet_arrival_handle(serverinfo_t *si,
                 case FIN_WAIT_1:
                     /* If our FIN has been ACKed (perhaps in this segment), then
                        enter TIME_WAIT, otherwise enter the CLOSING state */
+                    chilog(INFO, "send packet 11");
                     format_and_send_packet(si, entry, NULL, 0, false, false);
                     chitcpd_update_tcp_state(si, entry, CLOSING);
                     break;
