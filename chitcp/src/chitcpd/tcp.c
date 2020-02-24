@@ -354,9 +354,16 @@ int chitcpd_tcp_state_handle_ESTABLISHED(serverinfo_t *si, chisocketentry_t *ent
     else if (event == APPLICATION_CLOSE)
     {
         check_and_send_from_buffer(si, entry);
-        format_and_send_packet(si, entry, NULL, 0, false, true);
-        tcp_data->SND_NXT += 1;
         chitcpd_update_tcp_state(si, entry, FIN_WAIT_1);
+        if (circular_buffer_count(&tcp_data->send) == 0)
+        {
+            format_and_send_packet(si, entry, NULL, 0, false, true);
+            tcp_data->SND_NXT += 1;
+        }
+        else
+        {
+            tcp_data->waiting_for_empty_send_buffer = true;
+        }
 
     }
     else if (event == TIMEOUT_RTX)
@@ -510,7 +517,6 @@ int chitcpd_tcp_state_handle_LAST_ACK(serverinfo_t *si, chisocketentry_t *entry,
 
 static void rt_callback (multi_timer_t* mt, single_timer_t* rt_timer, void* aux)
 {
-    chilog(INFO, "in rt_callback");
     rt_callback_args_t *args = (rt_callback_args_t *) aux;
     chitcpd_timeout(args->si, args->entry, RETRANSMISSION);
 //    free(args);
@@ -518,7 +524,6 @@ static void rt_callback (multi_timer_t* mt, single_timer_t* rt_timer, void* aux)
 
 static int chitcpd_rtx_timeout_handle(serverinfo_t *si, chisocketentry_t *entry)
 {
-    chilog(INFO, "in rtx timeout handle");
     tcp_data_t *tcp_data = &entry->socket_state.active.tcp_data;
     rt_queue_elem_t *rt_elem;
     pthread_mutex_lock(&tcp_data->rt_lock);
@@ -540,8 +545,6 @@ static int chitcpd_rtx_timeout_handle(serverinfo_t *si, chisocketentry_t *entry)
     }
     pthread_mutex_unlock(&tcp_data->rt_lock);
 
-    chilog(INFO, "exiting rtx timeout handler");
-
     return CHITCP_OK;
 }
 
@@ -551,7 +554,6 @@ static int update_rtt(tcp_data_t *tcp_data, rt_queue_elem_t *rt_elem)
     clock_gettime(CLOCK_REALTIME, &now);
     timespec_subtract(&diff, &now, &rt_elem->time_sent);
     uint64_t rtt = (diff.tv_sec * SECOND) + diff.tv_nsec;
-    chilog(INFO, "old rtt is %u", tcp_data->rto);
     if (tcp_data->srtt == 0 && tcp_data->rttvar == 0)  // First RTT measurement
     {
         tcp_data->srtt = rtt;
@@ -576,14 +578,11 @@ static int update_rtt(tcp_data_t *tcp_data, rt_queue_elem_t *rt_elem)
             tcp_data->rto = MIN_RTO;
         }
     }
-    chilog(INFO, "new rtt is %u", tcp_data->rto);
     return CHITCP_OK;
 }
 
 static int rt_queue_removed_acked_segs(serverinfo_t *si, chisocketentry_t *entry, tcp_seq ack_seq)
 {
-    chilog(INFO, "in rt_queue_removed_ack_segs");
-    // the timer is active iff it is active on the first element in the rt_queue
     tcp_data_t *tcp_data = &entry->socket_state.active.tcp_data;
     tcp_packet_t *p;
     rt_queue_elem_t *rt_elem;
@@ -593,13 +592,10 @@ static int rt_queue_removed_acked_segs(serverinfo_t *si, chisocketentry_t *entry
     if (rt_elem != NULL)
     {
         p = rt_elem->packet;
-        chilog(INFO, "First paket in rt_queue: seg_seq = %u, seg_len = %u, ack = %u", SEG_SEQ(p), SEG_LEN(p), ack_seq);
         if (SEG_SEQ(p) + SEG_LEN(p) <= ack_seq)
         {
-            chilog(INFO, "rt_queue_removed_ack_segs canceling timer and moving to next in rt_queue");
             update_rtt(tcp_data, rt_elem);
             mt_cancel_timer(tcp_data->mt, RT_TIMER_ID);
-            chilog(INFO, "DELETING FROM RT_QUEUE");
             DL_DELETE(tcp_data->rt_queue, rt_elem);
             tcp_data->SND_UNA = SEG_SEQ(p) + SEG_LEN(p);
             for (rt_elem = rt_elem->next; rt_elem; rt_elem = rt_elem->next)
@@ -607,28 +603,21 @@ static int rt_queue_removed_acked_segs(serverinfo_t *si, chisocketentry_t *entry
                 p = rt_elem->packet;
                 if (SEG_SEQ(p) + SEG_LEN(p) > ack_seq)
                 {
-                    chilog(INFO, "ack did not acknowledge next packet in rt_queue");
                     break;
                 }
                 else
                 {
-                    chilog(INFO, "DELETING FROM RT_QUEUE");
                     DL_DELETE(tcp_data->rt_queue, rt_elem);
                     tcp_data->SND_UNA = SEG_SEQ(p) + SEG_LEN(p);
                 }
             }
             if (rt_elem != NULL)
             {
-                chilog(INFO, "resetting timer to next in rt_queue");
                 rt_callback_args_t *callback_args = calloc(1, sizeof(rt_callback_args_t));
                 callback_args->si = si;
                 callback_args->entry = entry;
 
                 mt_set_timer(tcp_data->mt, RT_TIMER_ID, tcp_data->rto, rt_callback, callback_args);
-            }
-            else
-            {
-                chilog(INFO, "RT_QUEUE IS EMPTY");
             }
         }
     }
@@ -661,7 +650,6 @@ static int format_and_send_packet(serverinfo_t *si, chisocketentry_t *entry,
     {
         send_header->fin = 1;
     }
-    chilog(INFO, "Sending packet with seg seq = %u, seg len = %u, ack seq = %u", SEG_SEQ(send_packet), SEG_LEN(send_packet), tcp_data->RCV_NXT);
     /* Send packet and add to retransmission queue */
     pthread_mutex_lock(&tcp_data->rt_lock);
     rt_queue_elem_t *rt_elem = calloc(1, sizeof(rt_queue_elem_t));
@@ -674,13 +662,11 @@ static int format_and_send_packet(serverinfo_t *si, chisocketentry_t *entry,
     {
         if (tcp_data->rt_queue == NULL)
         {
-            chilog(INFO, "rt queue is null, setting timer for this packet just sent");
             rt_callback_args_t *callback_args = calloc (1, sizeof(rt_callback_args_t));
             callback_args->si = si;
             callback_args->entry = entry;
             mt_set_timer(tcp_data->mt, RT_TIMER_ID, tcp_data->rto, rt_callback, callback_args);
         }
-        chilog(INFO, "APPENDING PACKET TO RT_QUEUE");
         DL_APPEND(tcp_data->rt_queue, rt_elem);
     }
 
@@ -699,14 +685,11 @@ static int check_and_send_from_buffer(serverinfo_t *si, chisocketentry_t *entry)
     /* check that there are items to read and that effective window > 0 */
     while ((circular_buffer_count(&tcp_data->send) > 0) && (effective_window > 0))
     {
-        chilog(INFO, "ITERATING THROUGH check_and_send_from_buffer");
         len = MIN(effective_window, TCP_MSS);
         nbytes = circular_buffer_read(&tcp_data->send, data_to_send, len, true);
-        chilog(INFO, "send packet 1: nbytes sent is %d", nbytes);
         format_and_send_packet(si, entry, data_to_send, nbytes, false, false);
         tcp_data->SND_NXT += nbytes;
         effective_window = tcp_data->SND_WND - (tcp_data->SND_NXT - tcp_data->SND_UNA);
-        chilog(INFO, "NEW CICULAR BUFFER COUNT IS %u", circular_buffer_count(&tcp_data->send));
     }
 
     return CHITCP_OK;
@@ -724,7 +707,6 @@ static int chitcpd_tcp_packet_arrival_handle(serverinfo_t *si,
       chitcp_packet_list_pop_head(&tcp_data->pending_packets);
     }
     header = TCP_PACKET_HEADER(packet);
-    chilog(INFO, "In packet arrival handler: received packet SEQ is %u, LEN is %u", SEG_SEQ(packet), SEG_LEN(packet));
     if (entry->tcp_state == CLOSED)
     {
         /* ignore packets while in CLOSED */
@@ -746,7 +728,6 @@ static int chitcpd_tcp_packet_arrival_handle(serverinfo_t *si,
             tcp_data->SND_WND = SEG_WND(packet);
             circular_buffer_set_seq_initial(&tcp_data->recv, tcp_data->IRS + 1);
             circular_buffer_set_seq_initial(&tcp_data->send, iss + 1);
-            chilog(INFO, "send packet 2");
             format_and_send_packet(si, entry, NULL, 0, true, false);
             tcp_data->SND_UNA = iss;
             tcp_data->SND_NXT = iss + 1;
@@ -774,19 +755,16 @@ static int chitcpd_tcp_packet_arrival_handle(serverinfo_t *si,
             tcp_data->SND_WND = SEG_WND(packet);
 //            tcp_data->SND_UNA = SEG_ACK(packet);
             circular_buffer_set_seq_initial(&tcp_data->recv, tcp_data->IRS + 1);
-            chilog(INFO, "rt_queue remove 1");
             rt_queue_removed_acked_segs(si, entry, SEG_ACK(packet));
 
             if (tcp_data->SND_UNA > tcp_data->ISS)
             {
-                chilog(INFO, "send packet 3");
                 format_and_send_packet(si, entry, NULL, 0, false, false);
                 chitcpd_update_tcp_state(si, entry, ESTABLISHED);
                 return CHITCP_OK;
             }
             else
             {
-                chilog(INFO, "send packet 5");
                 format_and_send_packet(si, entry, NULL, 0, true, false);
                 tcp_data->SND_NXT += 1;
                 chitcpd_update_tcp_state(si, entry, SYN_RCVD);
@@ -832,9 +810,6 @@ static int chitcpd_tcp_packet_arrival_handle(serverinfo_t *si,
         }
         if ((!acceptable) || (tcp_data->RCV_NXT != SEG_SEQ(packet)))
         {
-            /* <SEQ=SND.NXT><ACK=RCV.NXT><CTL=ACK> */
-            chilog(INFO, "RCV_NXT is %u but SEQ is %u, so drop packet", tcp_data->RCV_NXT, SEG_SEQ(packet));
-            chilog(INFO, "send packet 6");
             format_and_send_packet(si, entry, NULL, 0, false, false);
             return CHITCP_OK;
         }
@@ -860,9 +835,7 @@ static int chitcpd_tcp_packet_arrival_handle(serverinfo_t *si,
                 if (tcp_data->SND_UNA <= SEG_ACK(packet) && SEG_ACK(packet) <=
                                                               tcp_data->SND_NXT)
                 {
-//                    tcp_data->SND_UNA = SEG_ACK(packet);
                     tcp_data->SND_WND = SEG_WND(packet);
-                    chilog(INFO, "rt_queue remove 2");
                     rt_queue_removed_acked_segs(si, entry, SEG_ACK(packet));
                     check_and_send_from_buffer(si, entry);
                     chitcpd_update_tcp_state(si, entry, ESTABLISHED);
@@ -880,7 +853,6 @@ static int chitcpd_tcp_packet_arrival_handle(serverinfo_t *si,
                  * connection */
                 if (tcp_data->SND_UNA < SEG_ACK(packet))
                 {
-                    chilog(INFO, "rt_queue remove 3");
                     rt_queue_removed_acked_segs(si, entry, SEG_ACK(packet));
                     memset(tcp_data, 0, sizeof (tcp_data));
                     chitcpd_update_tcp_state(si, entry, CLOSED);
@@ -891,11 +863,8 @@ static int chitcpd_tcp_packet_arrival_handle(serverinfo_t *si,
             {
                 /* The only thing that can arrive here is a retransmission of
                  * connection's FIN. Acknowledge it and restart timeout */
-                chilog(INFO, "rt_queue remove 4");
                 rt_queue_removed_acked_segs(si, entry, SEG_ACK(packet));
-                chilog(INFO, "send packet 7");
                 format_and_send_packet(si, entry, NULL, 0, false, false);
-                /* Restart the 2 MSL timeout here */
             }
             else
             {
@@ -906,9 +875,7 @@ static int chitcpd_tcp_packet_arrival_handle(serverinfo_t *si,
                 {
                   /* Need to remove segments in retransmission queue that
                      are acknowledged as a result of this: */
-//                    tcp_data->SND_UNA = SEG_ACK(packet);
                     tcp_data->SND_WND = SEG_WND(packet);
-                    chilog(INFO, "rt_queue remove 5");
                     rt_queue_removed_acked_segs(si, entry, SEG_ACK(packet));
                     check_and_send_from_buffer(si, entry);
                 }
@@ -930,6 +897,14 @@ static int chitcpd_tcp_packet_arrival_handle(serverinfo_t *si,
                  * all above */
                 if (entry->tcp_state == FIN_WAIT_1)
                 {
+
+                    if (tcp_data->waiting_for_empty_send_buffer &&
+                          circular_buffer_count(&tcp_data->send) == 0)
+                    {
+                        format_and_send_packet(si, entry, NULL, 0, false, true);
+                        tcp_data->SND_NXT += 1;
+                        tcp_data->waiting_for_empty_send_buffer = false;
+                    }
                     /* If our FIN is now acknowledged, enter FIN_WAIT_2 and
                      * continue processing */
                     if (tcp_data->SND_UNA == tcp_data->SND_NXT)
@@ -974,7 +949,6 @@ static int chitcpd_tcp_packet_arrival_handle(serverinfo_t *si,
                       TCP_PAYLOAD_START(packet), TCP_PAYLOAD_LEN(packet), true);
                     tcp_data->RCV_NXT = circular_buffer_next(&tcp_data->recv);
                     tcp_data->RCV_WND = circular_buffer_available(&tcp_data->recv);
-                    chilog(INFO, "send packet 9");
                     format_and_send_packet(si, entry, NULL, 0, false, false);
                     break;
                 case CLOSE_WAIT:
@@ -999,7 +973,6 @@ static int chitcpd_tcp_packet_arrival_handle(serverinfo_t *si,
             /* Signal the user "connection closing"
              * Return any pending RECEIVES with the same message */
             tcp_data->RCV_NXT = SEG_SEQ(packet) + 1;
-            chilog(INFO, "send packet 10");
             format_and_send_packet(si, entry, NULL, 0, false, false);
 
             switch (entry->tcp_state)
@@ -1011,7 +984,6 @@ static int chitcpd_tcp_packet_arrival_handle(serverinfo_t *si,
                 case FIN_WAIT_1:
                     /* If our FIN has been ACKed (perhaps in this segment), then
                        enter TIME_WAIT, otherwise enter the CLOSING state */
-                    chilog(INFO, "send packet 11");
                     format_and_send_packet(si, entry, NULL, 0, false, false);
                     chitcpd_update_tcp_state(si, entry, CLOSING);
                     break;
