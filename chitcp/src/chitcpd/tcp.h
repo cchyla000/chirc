@@ -174,6 +174,11 @@ typedef struct tcp_data
     rt_queue_elem_t *rt_queue;
     pthread_mutex_t rt_lock;
 
+    /* Probe byte. The packet with the byte of data sent in a probe segment and
+     * its sequence number */
+    tcp_packet_t *probe_packet;
+    uint32_t probe_seq;
+
 } tcp_data_t;
 
 

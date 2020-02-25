@@ -118,6 +118,8 @@ void tcp_data_init(serverinfo_t *si, chisocketentry_t *entry)
     tcp_data->rto = 3 * MIN_RTO;
     tcp_data->srtt = 0;
     tcp_data->rttvar = 0;
+    tcp_data->probe_packet = calloc(1, sizeof(tcp_packet_t));
+    tcp_data->probe_seq = 0;
 }
 
 void tcp_data_free(serverinfo_t *si, chisocketentry_t *entry)
@@ -171,8 +173,10 @@ typedef struct rt_callback_args
  * RETURN: CHITCP_OK upon completion
  */
 static void rt_callback (multi_timer_t* mt, single_timer_t* rt_timer, void* aux);
+static void pt_callback(multi_timer_t* mt, single_timer_t* rt_timer, void* aux);
 
 static int chitcpd_rtx_timeout_handle(serverinfo_t *si, chisocketentry_t *entry);
+static int chitcpd_pst_timeout_handle(serverinfo_t *si, chisocketentry_t *entry);
 
 /*
  * Note: must be called with rto_lock already locked
@@ -365,7 +369,7 @@ int chitcpd_tcp_state_handle_ESTABLISHED(serverinfo_t *si, chisocketentry_t *ent
     }
     else if (event == TIMEOUT_PST)
     {
-        /* Your code goes here */
+        return chitcpd_pst_timeout_handle(si , entry);
     }
     else
         chilog(WARNING, "In ESTABLISHED state, received unexpected event (%i).", event);
@@ -391,7 +395,7 @@ int chitcpd_tcp_state_handle_FIN_WAIT_1(serverinfo_t *si, chisocketentry_t *entr
     }
     else if (event == TIMEOUT_PST)
     {
-        /* Your code goes here */
+        return chitcpd_pst_timeout_handle(si , entry);
     }
     else
        chilog(WARNING, "In FIN_WAIT_1 state, received unexpected event (%i).", event);
@@ -445,7 +449,7 @@ int chitcpd_tcp_state_handle_CLOSE_WAIT(serverinfo_t *si, chisocketentry_t *entr
     }
     else if (event == TIMEOUT_PST)
     {
-        /* Your code goes here */
+        return chitcpd_pst_timeout_handle(si , entry);
     }
     else
        chilog(WARNING, "In CLOSE_WAIT state, received unexpected event (%i).", event);
@@ -467,7 +471,7 @@ int chitcpd_tcp_state_handle_CLOSING(serverinfo_t *si, chisocketentry_t *entry, 
     }
     else if (event == TIMEOUT_PST)
     {
-        /* Your code goes here */
+        return chitcpd_pst_timeout_handle(si , entry);
     }
     else
        chilog(WARNING, "In CLOSING state, received unexpected event (%i).", event);
@@ -496,7 +500,7 @@ int chitcpd_tcp_state_handle_LAST_ACK(serverinfo_t *si, chisocketentry_t *entry,
     }
     else if (event == TIMEOUT_PST)
     {
-        /* Your code goes here */
+        return chitcpd_pst_timeout_handle(si , entry);
     }
     else
        chilog(WARNING, "In LAST_ACK state, received unexpected event (%i).", event);
@@ -514,6 +518,13 @@ static void rt_callback (multi_timer_t* mt, single_timer_t* rt_timer, void* aux)
     rt_callback_args_t *args = (rt_callback_args_t *) aux;
     chitcpd_timeout(args->si, args->entry, RETRANSMISSION);
 //    free(args);
+}
+
+static void pt_callback(multi_timer_t* mt, single_timer_t* rt_timer, void* aux)
+{
+    chilog(INFO, "in pt_callback");
+    rt_callback_args_t *args = (rt_callback_args_t *) aux;
+    chitcpd_timeout(args->si, args->entry, PERSIST);
 }
 
 static int chitcpd_rtx_timeout_handle(serverinfo_t *si, chisocketentry_t *entry)
@@ -542,6 +553,50 @@ static int chitcpd_rtx_timeout_handle(serverinfo_t *si, chisocketentry_t *entry)
 
     chilog(INFO, "exiting rtx timeout handler");
 
+    return CHITCP_OK;
+}
+
+static int chitcpd_pst_timeout_handle(serverinfo_t *si, chisocketentry_t *entry)
+{
+    tcp_data_t *tcp_data = &entry->socket_state.active.tcp_data;
+    chilog(INFO, "in pst timeout handle %i", circular_buffer_count(&tcp_data->send));
+    int nbytes;
+    uint8_t probe_byte;
+    tcphdr_t *send_header;
+    chilog(INFO, "probe seq: %u, send una: %u", tcp_data->probe_seq, tcp_data->SND_UNA);
+    if (tcp_data->SND_UNA <= tcp_data->probe_seq)
+    {
+        /* Last probe segment was never acknowledged, so send it again */
+        chilog(INFO, "ARTUR - RESENDING PROBE");
+        chitcpd_send_tcp_packet(si, entry, tcp_data->probe_packet);
+    }
+    else if (circular_buffer_count(&tcp_data->send) > 0)
+    {
+        chilog(INFO, "ARTUR - SENDING NEW PROBE");
+        /* There is data to send, send a probe segment */
+        nbytes = circular_buffer_read(&tcp_data->send, &probe_byte, 1, true);
+        if (nbytes == 1)
+        {
+            tcp_data->probe_seq = tcp_data->SND_NXT;
+            chitcpd_tcp_packet_create(entry, tcp_data->probe_packet, &probe_byte, nbytes);
+            send_header = TCP_PACKET_HEADER(tcp_data->probe_packet);
+            send_header->seq = chitcp_htonl(tcp_data->SND_NXT);
+            send_header->ack_seq = chitcp_htonl(tcp_data->RCV_NXT);
+            send_header->win = chitcp_htons(tcp_data->RCV_WND);
+            send_header->ack = 1;
+            tcp_data->SND_NXT += nbytes;
+            chitcpd_send_tcp_packet(si, entry, tcp_data->probe_packet);
+        }
+        else
+        {
+            /* This should not happen, there should be an error */
+        }
+    }
+    /* Always reset the persist timer */
+    rt_callback_args_t *callback_args = calloc(1, sizeof(rt_callback_args_t));
+    callback_args->si = si;
+    callback_args->entry = entry;
+    mt_set_timer(tcp_data->mt, PERSIST_TIMER_ID, tcp_data->rto, pt_callback, callback_args);
     return CHITCP_OK;
 }
 
@@ -724,7 +779,20 @@ static int chitcpd_tcp_packet_arrival_handle(serverinfo_t *si,
       chitcp_packet_list_pop_head(&tcp_data->pending_packets);
     }
     header = TCP_PACKET_HEADER(packet);
-    chilog(INFO, "In packet arrival handler: received packet SEQ is %u, LEN is %u", SEG_SEQ(packet), SEG_LEN(packet));
+    chilog(INFO, "In packet arrival handler: received packet SEQ is %u, LEN is %u, WND is %u", SEG_SEQ(packet), SEG_LEN(packet), SEG_WND(packet));
+    if (SEG_WND(packet) == 0)
+    {
+        chilog(INFO, "ARTUR - SETTING PERSIST");
+        rt_callback_args_t *callback_args = calloc(1, sizeof(rt_callback_args_t));
+        callback_args->si = si;
+        callback_args->entry = entry;
+        mt_set_timer(tcp_data->mt, PERSIST_TIMER_ID, tcp_data->rto, pt_callback, callback_args);
+    }
+    else if (SEG_WND(packet) > 0)
+    {
+        chilog(INFO, "ARTUR - CANCELING PERSIST");
+        mt_cancel_timer(tcp_data->mt, PERSIST_TIMER_ID);
+    }
     if (entry->tcp_state == CLOSED)
     {
         /* ignore packets while in CLOSED */
