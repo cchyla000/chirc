@@ -161,6 +161,8 @@ typedef struct tcp_data
     /* Has a CLOSE been requested on this socket? */
     bool_t closing;
 
+    bool_t waiting_for_empty_send_buffer;
+
     /* Multitimer for this TCP data struct */
     multi_timer_t *mt;
 
