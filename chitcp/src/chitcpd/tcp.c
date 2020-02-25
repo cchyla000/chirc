@@ -166,23 +166,65 @@ typedef struct rt_callback_args
  * retransmission timer expires
  *
  * PARAMETERS:
- *  mt     the tcp_data multi_timer
- *  rt_timer:  - the retranmission timer
- *  aux:       - auxilary data
+ *  mt        - the tcp_data multi_timer
+ *  rt_timer  - the retranmission timer
+ *  aux       - auxilary data
  *
  * RETURN: CHITCP_OK upon completion
  */
 static void rt_callback (multi_timer_t* mt, single_timer_t* rt_timer, void* aux);
 static void pt_callback(multi_timer_t* mt, single_timer_t* rt_timer, void* aux);
 
+/* NAME: chitcpd_rtx_timeout_handle
+ *
+ * DESCRIPTION: This function handles a TIMEOUT_RTX event by resending
+ * everything in the retransmission queue in order from oldest one that
+ * was sent to the newest one. It also doubles the RTO, as specified in the
+ * RFC and resets the retranmission timer for the new RTO based on the time
+ * of the earliest message that was resent.
+ *
+ * PARAMETERS:
+ *  si    - the serverinfo needed to provide to the callback args for RT timer
+ *  entry - chisocket entry for this connection
+ *
+ * RETURN: CHITCP_OK upon completion
+ */
 static int chitcpd_rtx_timeout_handle(serverinfo_t *si, chisocketentry_t *entry);
 static int chitcpd_pst_timeout_handle(serverinfo_t *si, chisocketentry_t *entry);
 
-/*
- * Note: must be called with rto_lock already locked
+/* NAME: update_rtt
+ *
+ * DESCRIPTION: Updates the tcp_data struct SRTT, RTTVAR, and RTO fields
+ * based on a RTT that is calculated from the difference when a packet in
+ * the provided rt_elem was sent and the current time. Note that this function
+ * is called by rt_queue_removed_acked_segs, and it must be called with rto_lock
+ * already locked, since both update_rtt and its calling function both make
+ * edits to data structures that are protected from race conditions by the rto_lock
+ *
+ * PARAMETERS:
+ *  tcp_data  - the tcp_data struct where the SRTT, RTTVAR, and RTO variables are stored
+ *  rt_elem   - the rt_elem with a packet that was just acknowledged by remote
+ *
+ * RETURN: CHITCP_OK upon completion
  */
 static int update_rtt(tcp_data_t *tcp_data, rt_queue_elem_t *rt_elem);
 
+/* NAME: rt_queue_removed_acked_segs
+ *
+ * DESCRIPTION: Whenever a incoming packet contains a valid ACK, this function
+ * is called to remove all packets from the retransmission queue that were
+ * acknowledged by this ACK. It also updates the connection's SND_UNA variable
+ * accordingly and the RTO variable by calling update_rtt. It cancels the RT timer
+ * when at least one packet in the RT queue was determined to be acknowledged and
+ * resets it for the first rt_elem to not be acknowledged by the ACK, if any.
+ *
+ * PARAMETERS:
+ *  si      - the serverinfo needed to provide to the callback args for RT timer 
+ *  entry   - chisocket entry for this connection
+ *  ack_seq - the next byte that the remote connection is expecting
+ *
+ * RETURN: CHITCP_OK upon completion
+ */
 static int rt_queue_removed_acked_segs(serverinfo_t *si, chisocketentry_t *entry, tcp_seq ack_seq);
 
 /* NAME: format_and_send_packet
@@ -523,7 +565,6 @@ static void rt_callback (multi_timer_t* mt, single_timer_t* rt_timer, void* aux)
 {
     rt_callback_args_t *args = (rt_callback_args_t *) aux;
     chitcpd_timeout(args->si, args->entry, RETRANSMISSION);
-//    free(args);
 }
 
 static void pt_callback(multi_timer_t* mt, single_timer_t* rt_timer, void* aux)
@@ -929,7 +970,7 @@ static int chitcpd_tcp_packet_arrival_handle(serverinfo_t *si,
             else if (entry->tcp_state == TIME_WAIT)
             {
                 /* The only thing that can arrive here is a retransmission of
-                 * connection's FIN. Acknowledge it and restart timeout */
+                 * connection's FIN. Acknowledge it. */
                 rt_queue_removed_acked_segs(si, entry, SEG_ACK(packet));
                 format_and_send_packet(si, entry, NULL, 0, false, false);
             }
@@ -979,14 +1020,8 @@ static int chitcpd_tcp_packet_arrival_handle(serverinfo_t *si,
                         chitcpd_update_tcp_state(si, entry, FIN_WAIT_2);
                     }
                 }
-                if (entry->tcp_state == FIN_WAIT_2)
-                {
-                    /* If the retransmission queue is empty, the user's CLOSE
-                       can be acknowledged, but do not delete TCB */
 
-
-                }
-                else if (entry->tcp_state == CLOSING)
+                if (entry->tcp_state == CLOSING)
                 {
                     /* If the ACK acknowledges our FIN, then enter the TIME_WAIT
                      * state, otherwise ignore the segment.
