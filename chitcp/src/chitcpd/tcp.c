@@ -120,6 +120,7 @@ void tcp_data_init(serverinfo_t *si, chisocketentry_t *entry)
     tcp_data->rttvar = 0;
     tcp_data->probe_packet = calloc(1, sizeof(tcp_packet_t));
     tcp_data->probe_seq = 0;
+    tcp_data->ooo_packets = NULL;
 }
 
 void tcp_data_free(serverinfo_t *si, chisocketentry_t *entry)
@@ -521,6 +522,7 @@ int chitcpd_tcp_state_handle_LAST_ACK(serverinfo_t *si, chisocketentry_t *entry,
 
 static void rt_callback (multi_timer_t* mt, single_timer_t* rt_timer, void* aux)
 {
+    chilog(INFO, "RETRANSMISSION");
     rt_callback_args_t *args = (rt_callback_args_t *) aux;
     chitcpd_timeout(args->si, args->entry, RETRANSMISSION);
 //    free(args);
@@ -750,16 +752,103 @@ static int check_and_send_from_buffer(serverinfo_t *si, chisocketentry_t *entry)
     return CHITCP_OK;
 }
 
+static int seq_cmp(tcp_packet_list_t *packet_list_elem_a, tcp_packet_list_t *packet_list_elem_b)
+{
+    return SEG_SEQ(packet_list_elem_a->packet) - SEG_SEQ(packet_list_elem_b->packet);
+}
+
+static void add_out_of_order_packet(tcp_data_t *tcp_data, tcp_packet_t *packet)
+{
+    chilog(INFO, "ARTUR - IN ADD OUT OF ORDER");
+    tcp_packet_list_t *ooo_packets = tcp_data->ooo_packets;
+    tcphdr_t *header = TCP_PACKET_HEADER(packet);
+    tcp_packet_list_t *ooo_packet_elem = calloc(1, sizeof(tcp_packet_list_t));
+    tcp_packet_list_t *found = NULL;
+    ooo_packet_elem->packet = packet;
+    ooo_packet_elem->prev = NULL;
+    ooo_packet_elem->next = NULL;
+    DL_SEARCH(tcp_data->ooo_packets, found, ooo_packet_elem, seq_cmp);
+    if (found)
+    {
+        chilog(INFO, "WE SHOULD GET HERE SOMETIMES");
+        free(ooo_packet_elem);
+        return;
+    }
+    DL_INSERT_INORDER(tcp_data->ooo_packets, ooo_packet_elem, seq_cmp);
+    // if (ooo_packets == NULL)
+    // {
+    //     /* out of order list was empty */
+    //     tcp_data->ooo_packets = ooo_packet_elem;
+    //     return;
+    // }
+    // if (SEG_SEQ(packet) < SEG_SEQ(ooo_packets->packet))
+    // {
+    //     chilog(INFO, "WE SHOULD GET HERE AT SOME POINT");
+    //     /* packet has sequence less than head of list, so make it the head */
+    //     tcp_data->ooo_packets = ooo_packet_elem;
+    //     ooo_packets->prev = ooo_packet_elem;
+    //     ooo_packet_elem->next = ooo_packets;
+    //     return;
+    // }
+    // while (SEG_SEQ(packet) >= SEG_SEQ(ooo_packets->packet))
+    // {
+    //     if (SEG_SEQ(packet) == SEG_SEQ(ooo_packets->packet))
+    //     {
+    //         /* packet is already in out of order */
+    //         free(ooo_packet_elem);
+    //         return;
+    //     }
+    //     if (ooo_packets->next == NULL)
+    //     {
+    //         ooo_packets->next = ooo_packet_elem;
+    //         ooo_packet_elem->prev = ooo_packets;
+    //         return;
+    //     }
+    //     ooo_packets = ooo_packets->next;
+    // }
+    // ooo_packet_elem->next = ooo_packets;
+    // ooo_packet_elem->prev = ooo_packets->prev;
+    // ooo_packets->prev->next = ooo_packet_elem;
+    // ooo_packets->prev = ooo_packet_elem;
+}
+
+static void check_head_ooo_packets(tcp_data_t *tcp_data)
+{
+    chilog(INFO, "ARTUR - IN CHECKING OOO PACKETS");
+    tcp_packet_list_t *ooo_packets = tcp_data->ooo_packets;
+    if (ooo_packets == NULL)
+    {
+        return;
+    }
+    chilog(INFO, "packet seq: %u", SEG_SEQ(tcp_data->ooo_packets->packet));
+    chilog(INFO, "rcv_nxt: %u", tcp_data->RCV_NXT);
+    if (tcp_data->RCV_NXT == SEG_SEQ(tcp_data->ooo_packets->packet))
+    {
+        tcp_packet_t *packet = tcp_data->ooo_packets->packet;
+        // tcp_data->ooo_packets = tcp_data->ooo_packets->next;
+        chitcp_packet_list_pop_head(&tcp_data->ooo_packets);
+        free(ooo_packets);
+        chitcp_packet_list_append(&tcp_data->pending_packets, packet);
+    }
+}
+
 static int chitcpd_tcp_packet_arrival_handle(serverinfo_t *si,
                                                         chisocketentry_t *entry)
 {
     tcp_data_t *tcp_data = &entry->socket_state.active.tcp_data;
     tcp_packet_t *packet = NULL;
     tcphdr_t *header = NULL;
+    pthread_mutex_lock(&tcp_data->lock_pending_packets);
     if (tcp_data->pending_packets)
     {
       packet = tcp_data->pending_packets->packet;
       chitcp_packet_list_pop_head(&tcp_data->pending_packets);
+      pthread_mutex_unlock(&tcp_data->lock_pending_packets);
+    }
+    else
+    {
+        pthread_mutex_unlock(&tcp_data->lock_pending_packets);
+        return CHITCP_OK;
     }
     header = TCP_PACKET_HEADER(packet);
     chilog(INFO, "In packet arrival handler: received packet SEQ is %u, LEN is %u, WND is %u", SEG_SEQ(packet), SEG_LEN(packet), SEG_WND(packet));
@@ -878,6 +967,11 @@ static int chitcpd_tcp_packet_arrival_handle(serverinfo_t *si,
         if ((!acceptable) || (tcp_data->RCV_NXT != SEG_SEQ(packet)))
         {
             format_and_send_packet(si, entry, NULL, 0, false, false);
+            if (tcp_data->RCV_NXT < SEG_SEQ(packet))
+            {
+                /* Add packet to out_of_order list */
+                add_out_of_order_packet(tcp_data, packet);
+            }
             return CHITCP_OK;
         }
 
@@ -1014,8 +1108,10 @@ static int chitcpd_tcp_packet_arrival_handle(serverinfo_t *si,
                     /* Add segment text to user RECEIVE buffer */
                     nbytes = circular_buffer_write(&tcp_data->recv,
                       TCP_PAYLOAD_START(packet), TCP_PAYLOAD_LEN(packet), true);
+                    /* This is where we will check the out-of-order list */
                     tcp_data->RCV_NXT = circular_buffer_next(&tcp_data->recv);
                     tcp_data->RCV_WND = circular_buffer_available(&tcp_data->recv);
+                    check_head_ooo_packets(tcp_data);
                     format_and_send_packet(si, entry, NULL, 0, false, false);
                     break;
                 case CLOSE_WAIT:

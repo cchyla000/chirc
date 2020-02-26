@@ -181,6 +181,9 @@ typedef struct tcp_data
     tcp_packet_t *probe_packet;
     uint32_t probe_seq;
 
+    /* Out-Of-Order list. List of packets that are received not in sequence
+     * order. */
+    tcp_packet_list_t *ooo_packets;
 } tcp_data_t;
 
 
