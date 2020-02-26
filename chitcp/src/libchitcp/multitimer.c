@@ -195,8 +195,7 @@ int mt_set_timer(multi_timer_t *mt, uint16_t id, uint64_t timeout, mt_callback_f
         timer->active = true;
         timer->callback = callback;
         timer->callback_args = callback_args;
-        clock_gettime(CLOCK_REALTIME, &timer->timeout);\
-        chilog(INFO, "real time nsec = %u, sec = %u, rto for nsec = %u", timer->timeout.tv_nsec, timer->timeout.tv_sec, timeout);
+        clock_gettime(CLOCK_REALTIME, &timer->timeout);
         tmp_nsec = timeout + timer->timeout.tv_nsec;
         timer->timeout.tv_nsec = tmp_nsec % SECOND;
         timer->timeout.tv_sec += (tmp_nsec / SECOND);
@@ -233,14 +232,10 @@ int mt_cancel_timer(multi_timer_t *mt, uint16_t id)
     }
     else
     {
-        chilog(INFO, "canceling timer");
         LL_DELETE(mt->timer_list, timer);
         timer->active = false;
-//        free(timer->callback_args);
         pthread_mutex_unlock(&mt->mutex);
     }
-
-    chilog(INFO, "exiting cancel timer");
 
     return CHITCP_OK;
 }
@@ -282,7 +277,8 @@ int mt_chilog_single_timer(loglevel_t level, single_timer_t *timer)
          * Note: The timespec_subtract function can come in handy here*/
         diff.tv_sec = 0;
         diff.tv_nsec = 0;
-        chilog(level, "%i %s %lis %lins", timer->id, timer->name, diff.tv_sec, diff.tv_nsec);
+        chilog(level, "%i %s %lis %lins", timer->id, timer->name,
+                                                    diff.tv_sec, diff.tv_nsec);
     }
     else
         chilog(level, "%i %s", timer->id, timer->name);
@@ -374,7 +370,8 @@ static void *timer_thread_func(void *args)
         }
         else  // Do timedwait on first timer that is unexpired
         {
-            const_timespec = tmp->timeout; // Guaranteed to be constant for this specific timedwait
+            /* Guaranteed to be constant for this specific timedwait */
+            const_timespec = tmp->timeout;
             pthread_cond_timedwait(&mt->cond, &mt->mutex,
               (const struct timespec *) &const_timespec);
         }

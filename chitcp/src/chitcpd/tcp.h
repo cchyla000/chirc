@@ -55,6 +55,7 @@
 #define ALPHA 0.125
 #define BETA 0.25
 #define CLOCK_GRANULARITY 50000000L
+#define PROBE_LEN 1
 
 /* TCP events. Roughly correspond to the ones specified in
  * http://tools.ietf.org/html/rfc793#section-3.9 */
