@@ -64,6 +64,29 @@
 #include "utils.h"
 #include "utlist.h"
 
+uint8_t* chirouter_create_arp_request(uint8_t *src_mac, uint32_t spa, uint32_t tpa)
+{
+    uint8_t *raw = calloc(1, sizeof(ethhdr_t) + sizeof(arp_packet_t));
+    ethhdr_t *hdr = (ethhdr_t*) raw;
+    arp_packet_t *arp = (arp_packet_t*) (raw + sizeof(ethhdr_t));
+    memset(hdr->dst, 0xff, ETHER_ADDR_LEN);
+    memcpy(hdr->src, src_mac, ETHER_ADDR_LEN);
+    hdr->type = ETHERTYPE_ARP;
+
+    arp->hdr = htons(ARP_HRD_ETHERNET);
+    arp->pro = htons(ETHERTYPE_IP);
+    arp->hln = ETHER_ADDR_LEN;
+    arp->pln = IPV4_ADDR_LEN;
+    arp->op = htons(ARP_OP_REQUEST);
+    memcpy(arp->sha, src_mac, ETHER_ADDR_LEN);
+    arp->spa = spa;
+    memset(arp->tha, 0xff, ETHER_ADDR_LEN);
+    arp->tpa = tpa;
+
+    return raw;
+
+}
+
 // int send_icmp_dst_unreachable(chirouter_ctx_t *ctx, chirouter_interface_t *iface, )
 // {
 //     icmp_packet_to_send = calloc(1, sizeof(icmp_packet_t))
@@ -89,6 +112,35 @@ int chirouter_process_ipv4_frame(chirouter_ctx_t *ctx, ethernet_frame_t *frame)
     }
     /* check if it is directed to another interface on the router */
     /* check routing table */
+    else
+    {
+         /* Check routing table here */
+         /* Temporary only forward to interface 1: */
+         chirouter_interface_t* interface = ctx->interfaces;
+
+         struct in_addr ip_addr;
+         ip_addr.s_addr = ip_hdr->dst;
+
+         chirouter_arpcache_entry_t* arpcache_entry;
+         pthread_mutex_lock(&(ctx->lock_arp));
+         arpcache_entry = chirouter_arp_cache_lookup(ctx, ip_addr);
+         pthread_mutex_unlock(&(ctx->lock_arp));
+
+         if (arpcache_entry == NULL)  // Cache MISS
+         {
+             uint8_t *raw = chirouter_create_arp_request(interface->mac,
+                                interface->ip.s_addr, ip_hdr->dst);
+             chirouter_send_frame(ctx, interface, raw, sizeof(ethhdr_t) + sizeof(arp_packet_t));
+             free(raw);
+
+         }
+         else  // Cache HIT
+         {
+              memcpy(hdr->dst, arpcache_entry->mac, ETHER_ADDR_LEN);
+              chirouter_send_frame(ctx, interface, frame->raw, frame->length);
+         }
+
+    }
     return 0;
 }
 
@@ -137,20 +189,26 @@ int chirouter_process_ethernet_frame(chirouter_ctx_t *ctx, ethernet_frame_t *fra
         {
             if (ntohs(arp->pro) == ETHERTYPE_IP)
             {
-              if (arp->tpa == ((uint32_t) frame->in_interface->ip.s_addr))
-              {
-                  if (ntohs(arp->op) == ARP_OP_REQUEST)
-                  {
-                      uint32_t tmp_pro_addr;
-                      memcpy(arp->tha, arp->sha, ETHER_ADDR_LEN);
-                      memcpy(arp->sha, frame->in_interface->mac, ETHER_ADDR_LEN);
-                      tmp_pro_addr = arp->spa;
-                      arp->spa = arp->tpa;
-                      arp->tpa = tmp_pro_addr;
-                      arp->op = htons(ARP_OP_REPLY);
-                      memcpy(hdr->dst, hdr->src, ETHER_ADDR_LEN);
-                      memcpy(hdr->src, frame->in_interface->mac, ETHER_ADDR_LEN);
-                      chirouter_send_frame(ctx, frame->in_interface, frame->raw, frame->length);
+                if (arp->tpa == ((uint32_t) frame->in_interface->ip.s_addr))
+                {
+                    if (ntohs(arp->op) == ARP_OP_REQUEST)
+                    {
+                        uint32_t tmp_pro_addr;
+                        memcpy(arp->tha, arp->sha, ETHER_ADDR_LEN);
+                        memcpy(arp->sha, frame->in_interface->mac, ETHER_ADDR_LEN);
+                        tmp_pro_addr = arp->spa;
+                        arp->spa = arp->tpa;
+                        arp->tpa = tmp_pro_addr;
+                        arp->op = htons(ARP_OP_REPLY);
+                        memcpy(hdr->dst, hdr->src, ETHER_ADDR_LEN);
+                        memcpy(hdr->src, frame->in_interface->mac, ETHER_ADDR_LEN);
+                        chirouter_send_frame(ctx, frame->in_interface, frame->raw, frame->length);
+                    }
+                    else if (ntohs(arp->op) == ARP_OP_REPLY)
+                    {
+                        struct in_addr ip_addr;
+                        ip_addr.s_addr = arp->spa;
+                        chirouter_arp_cache_add(ctx, ip_addr, arp->sha);
                     }
                 }
             }
