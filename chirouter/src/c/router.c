@@ -64,6 +64,33 @@
 #include "utils.h"
 #include "utlist.h"
 
+// int send_icmp_dst_unreachable(chirouter_ctx_t *ctx, chirouter_interface_t *iface, )
+// {
+//     icmp_packet_to_send = calloc(1, sizeof(icmp_packet_t))
+//
+// }
+
+int chirouter_process_ipv4_frame(chirouter_ctx_t *ctx, ethernet_frame_t *frame)
+{
+    iphdr_t* ip_hdr = (iphdr_t*) (frame->raw + sizeof(ethhdr_t));
+    ethhdr_t *hdr = (ethhdr_t*) frame->raw;
+    uint8_t *reply;
+    size_t reply_len;
+    /* check if it is directed to the interface that recieved it */
+    if (((uint32_t) frame->in_interface->ip.s_addr) == ip_hdr->dst)
+    {
+        /* check if time to live is 1 */
+        if (ip_hdr->ttl == 1)
+        {
+
+            reply = calloc(1, sizeof(ethhdr_t) + sizeof(icmp_packet_t));
+
+        }
+    }
+    /* check if it is directed to another interface on the router */
+    /* check routing table */
+    return 0;
+}
 
 /*
  * chirouter_process_ethernet_frame - Process a single inbound Ethernet frame
@@ -129,5 +156,8 @@ int chirouter_process_ethernet_frame(chirouter_ctx_t *ctx, ethernet_frame_t *fra
             }
         }
     }
-    return 0;
+    else if (ntohs(hdr->type) == ETHERTYPE_IP)
+    {
+        return chirouter_process_ipv4_frame(ctx, frame);
+    }
 }
