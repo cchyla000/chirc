@@ -101,9 +101,47 @@
  */
 int chirouter_process_ethernet_frame(chirouter_ctx_t *ctx, ethernet_frame_t *frame)
 {
-    /* Your code goes here */
+    ethhdr_t *hdr = (ethhdr_t*) frame->raw;
+    if (ntohs(hdr->type) == ETHERTYPE_ARP)
+    {
+        arp_packet_t *arp = (arp_packet_t*) ETHER_PAYLOAD_START(frame);
+        if (ntohs(arp->hrd) == ARP_HRD_ETHERNET)
+        {
+            if (ntohs(arp->pro) == ETHERTYPE_IP)
+            {
+//                bool merge_flag = false;
+                /* If the pair <protocol type, sender protocol addr> is
+                   already in my translation table, update the sender
+                   hardware addr field of the entry with the new info
+                   in the packet and set merge_flag = true */
+                if (ntohl(arp->tpa) == frame->in_interface->ip.s_addr)
+                {
+//                    if (!merge_flag)
+//                    {
+                        /* Add the triplet <protocol type,
+                           sender protocol addr, sender hardware addr>
+                           to translation table */
+//                    }
+
+                    if (ntohs(arp->op) == ARP_OP_REQUEST)
+                    {
+                        uint8_t tmp_hdr_addr[ETHER_ADDR_LEN] = {0};
+                        uint32_t tmp_pro_addr;
+                        strncpy(tmp_hdr_addr, arp->sha, ETHER_ADDR_LEN);
+                        strncpy(arp->sha, arp->tha, ETHER_ADDR_LEN);
+                        strncpy(arp->tha, tmp_hdr_addr, ETHER_ADDR_LEN);
+                        tmp_pro_addr = arp->spa;
+                        arp->spa = arp->tpa;
+                        arp->tpa = tmp_pro_addr;
+                        arp->op = ARP_OP_REPLY;
+                        chirouter_send_frame(ctx, frame->in_interface, frame->raw, frame->length);
+                    }
+
+                }
+            }
+        }
+
+    }
 
     return 0;
 }
-
-
