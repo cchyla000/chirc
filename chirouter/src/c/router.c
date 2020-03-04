@@ -102,49 +102,32 @@
  */
 int chirouter_process_ethernet_frame(chirouter_ctx_t *ctx, ethernet_frame_t *frame)
 {
-
     ethhdr_t *hdr = (ethhdr_t*) frame->raw;
     if (ntohs(hdr->type) == ETHERTYPE_ARP)
     {
-        chilog(DEBUG, "correct ethertype ARP");
-        arp_packet_t *arp = (arp_packet_t*) ETHER_PAYLOAD_START(frame);
-        chilog(DEBUG, "ntohs(arp->hrd) %x", ntohs(arp->hrd));
-        chilog(DEBUG, "ETHERTYPE_IP: %x", ETHERTYPE_IP);
-        if (ntohs(arp->hrd) == ETHERTYPE_IP)
+        arp_packet_t *arp = (arp_packet_t*) (frame->raw + sizeof(ethhdr_t));
+        if (ntohs(arp->hrd) == ARP_HRD_ETHERNET)
         {
-
-          chilog(DEBUG, "ntohs(arp->pro) %x", ntohs(arp->pro));
-          chilog(DEBUG, "ETHERTYPE_IP: %x", ETHERTYPE_IP);
-
             if (ntohs(arp->pro) == ETHERTYPE_IP)
             {
-              chilog(DEBUG, "ntohs(arp->tpa) %x", ntohs(arp->tpa));
-              chilog(DEBUG, "frame->in_interface->ip.s_addr: %x", frame->in_interface->ip.s_addr);
-
-                if (ntohl(arp->tpa) == frame->in_interface->ip.s_addr)
-                {
-
-                    if (ntohs(arp->op) == ARP_OP_REQUEST)
-                    {
-                      chilog(DEBUG, "correct OP");
-
-                        uint8_t tmp_hdr_addr[ETHER_ADDR_LEN] = {0};
-                        uint32_t tmp_pro_addr;
-                        strncpy(tmp_hdr_addr, arp->sha, ETHER_ADDR_LEN);
-                        strncpy(arp->sha, arp->tha, ETHER_ADDR_LEN);
-                        strncpy(arp->tha, tmp_hdr_addr, ETHER_ADDR_LEN);
-                        tmp_pro_addr = arp->spa;
-                        arp->spa = arp->tpa;
-                        arp->tpa = tmp_pro_addr;
-                        arp->op = ARP_OP_REPLY;
-                        chirouter_send_frame(ctx, frame->in_interface, frame->raw, frame->length);
+              if (arp->tpa == ((uint32_t) frame->in_interface->ip.s_addr))
+              {
+                  if (ntohs(arp->op) == ARP_OP_REQUEST)
+                  {
+                      uint32_t tmp_pro_addr;
+                      memcpy(arp->tha, arp->sha, ETHER_ADDR_LEN);
+                      memcpy(arp->sha, frame->in_interface->mac, ETHER_ADDR_LEN);
+                      tmp_pro_addr = arp->spa;
+                      arp->spa = arp->tpa;
+                      arp->tpa = tmp_pro_addr;
+                      arp->op = htons(ARP_OP_REPLY);
+                      memcpy(hdr->dst, hdr->src, ETHER_ADDR_LEN);
+                      memcpy(hdr->src, frame->in_interface->mac, ETHER_ADDR_LEN);
+                      chirouter_send_frame(ctx, frame->in_interface, frame->raw, frame->length);
                     }
-
                 }
             }
         }
-
     }
-
     return 0;
 }
