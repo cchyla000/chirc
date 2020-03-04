@@ -59,6 +59,7 @@
 #include <stdlib.h>
 
 #include "chirouter.h"
+#include "protocols/arp.h"
 #include "arp.h"
 #include "utils.h"
 #include "utlist.h"
@@ -105,27 +106,28 @@ int chirouter_process_ethernet_frame(chirouter_ctx_t *ctx, ethernet_frame_t *fra
     ethhdr_t *hdr = (ethhdr_t*) frame->raw;
     if (ntohs(hdr->type) == ETHERTYPE_ARP)
     {
+        chilog(DEBUG, "correct ethertype ARP");
         arp_packet_t *arp = (arp_packet_t*) ETHER_PAYLOAD_START(frame);
-        if (ntohs(arp->hrd) == ARP_HRD_ETHERNET)
+        chilog(DEBUG, "ntohs(arp->hrd) %x", ntohs(arp->hrd));
+        chilog(DEBUG, "ETHERTYPE_IP: %x", ETHERTYPE_IP);
+        if (ntohs(arp->hrd) == ETHERTYPE_IP)
         {
+
+          chilog(DEBUG, "ntohs(arp->pro) %x", ntohs(arp->pro));
+          chilog(DEBUG, "ETHERTYPE_IP: %x", ETHERTYPE_IP);
+
             if (ntohs(arp->pro) == ETHERTYPE_IP)
             {
-//                bool merge_flag = false;
-                /* If the pair <protocol type, sender protocol addr> is
-                   already in my translation table, update the sender
-                   hardware addr field of the entry with the new info
-                   in the packet and set merge_flag = true */
+              chilog(DEBUG, "ntohs(arp->tpa) %x", ntohs(arp->tpa));
+              chilog(DEBUG, "frame->in_interface->ip.s_addr: %x", frame->in_interface->ip.s_addr);
+
                 if (ntohl(arp->tpa) == frame->in_interface->ip.s_addr)
                 {
-//                    if (!merge_flag)
-//                    {
-                        /* Add the triplet <protocol type,
-                           sender protocol addr, sender hardware addr>
-                           to translation table */
-//                    }
 
                     if (ntohs(arp->op) == ARP_OP_REQUEST)
                     {
+                      chilog(DEBUG, "correct OP");
+
                         uint8_t tmp_hdr_addr[ETHER_ADDR_LEN] = {0};
                         uint32_t tmp_pro_addr;
                         strncpy(tmp_hdr_addr, arp->sha, ETHER_ADDR_LEN);
