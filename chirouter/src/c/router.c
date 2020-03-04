@@ -73,7 +73,7 @@ uint8_t* chirouter_create_arp_request(uint8_t *src_mac, uint32_t spa, uint32_t t
     memcpy(hdr->src, src_mac, ETHER_ADDR_LEN);
     hdr->type = ETHERTYPE_ARP;
 
-    arp->hdr = htons(ARP_HRD_ETHERNET);
+    arp->hrd = htons(ARP_HRD_ETHERNET);
     arp->pro = htons(ETHERTYPE_IP);
     arp->hln = ETHER_ADDR_LEN;
     arp->pln = IPV4_ADDR_LEN;
@@ -157,7 +157,7 @@ int chirouter_process_ipv4_frame(chirouter_ctx_t *ctx, ethernet_frame_t *frame)
 
          chirouter_arpcache_entry_t* arpcache_entry;
          pthread_mutex_lock(&(ctx->lock_arp));
-         arpcache_entry = chirouter_arp_cache_lookup(ctx, ip_addr);
+         arpcache_entry = chirouter_arp_cache_lookup(ctx, &ip_addr);
          pthread_mutex_unlock(&(ctx->lock_arp));
 
          if (arpcache_entry == NULL)  // Cache MISS
@@ -242,7 +242,7 @@ int chirouter_process_ethernet_frame(chirouter_ctx_t *ctx, ethernet_frame_t *fra
                     {
                         struct in_addr ip_addr;
                         ip_addr.s_addr = arp->spa;
-                        chirouter_arp_cache_add(ctx, ip_addr, arp->sha);
+                        chirouter_arp_cache_add(ctx, &ip_addr, arp->sha);
                     }
                 }
             }
