@@ -55,6 +55,7 @@
 #define ALPHA 0.125
 #define BETA 0.25
 #define CLOCK_GRANULARITY 50000000L
+#define PROBE_LEN 1
 
 /* TCP events. Roughly correspond to the ones specified in
  * http://tools.ietf.org/html/rfc793#section-3.9 */
@@ -181,6 +182,9 @@ typedef struct tcp_data
     tcp_packet_t *probe_packet;
     uint32_t probe_seq;
 
+    /* Out-Of-Order list. List of packets that are received not in sequence
+     * order. */
+    tcp_packet_list_t *ooo_packets;
 } tcp_data_t;
 
 
