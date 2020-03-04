@@ -103,45 +103,11 @@ int chirouter_process_ipv4_frame(chirouter_ctx_t *ctx, ethernet_frame_t *frame)
     if (((uint32_t) frame->in_interface->ip.s_addr) == ip_hdr->dst)
     {
         /* check if time to live is 1 */
-        // if (ip_hdr->ttl == 1)
-        // {
-        //     reply_len = sizeof(ethhdr_t) + sizeof(icmp_packet_t);
-        //     reply = calloc(1, reply_len);
-        //
-        // }
-        if ((ip_hdr->proto) == IPPROTO_ICMP)
+        if (ip_hdr->ttl == 1)
         {
-            icmp_packet_t* icmp = (icmp_packet_t*) (frame->raw + sizeof(ethhdr_t) + sizeof(iphdr_t));
-            if (icmp->type == ICMPTYPE_ECHO_REQUEST)
-            {
-                reply_len = frame->length;
-                reply = calloc(1, reply_len);
-                icmp_packet_t* reply_icmp = (icmp_packet_t*) (reply + sizeof(ethhdr_t) + sizeof(iphdr_t));
-                reply_icmp->type = ICMPTYPE_ECHO_REPLY;
-                memcpy(reply_icmp->echo.payload, icmp->echo.payload, MAX_ECHO_PAYLOAD);
-                reply_icmp->echo.identifier = icmp->echo.identifier;
-                reply_icmp->echo.seq_num = icmp->echo.seq_num;
-                reply_icmp->chksum = cksum(reply_icmp, ICMP_HDR_SIZE + MAX_ECHO_PAYLOAD);
-                iphdr_t* reply_ip_hdr = (iphdr_t*) (reply + sizeof(ethhdr_t));
-                reply_ip_hdr->tos = ip_hdr->tos;
-                reply_ip_hdr->len = ip_hdr->len;
-                reply_ip_hdr->id = ip_hdr->id;
-                reply_ip_hdr->off = ip_hdr->off;
-                reply_ip_hdr->ttl = ip_hdr->ttl;
-                reply_ip_hdr->proto = ip_hdr->proto;
-                reply_ip_hdr->src = ip_hdr->dst;
-                reply_ip_hdr->dst = ip_hdr->src;
-                reply_ip_hdr->cksum = cksum(reply_ip_hdr, sizeof(iphdr_t) + ICMP_HDR_SIZE + MAX_ECHO_PAYLOAD);
-                ethhdr_t* reply_hdr = (ethhdr_t*) reply;
-                reply_hdr->type = htons(ETHERTYPE_IP);
-                memcpy(reply_hdr->src, hdr->dst, ETHER_ADDR_LEN);
-                memcpy(reply_hdr->dst, hdr->src, ETHER_ADDR_LEN);
-                chirouter_send_frame(ctx, frame->in_interface, reply, reply_len);
-            }
-            else
-            {
-                return 0;
-            }
+
+            reply = calloc(1, sizeof(ethhdr_t) + sizeof(icmp_packet_t));
+
         }
     }
     /* check if it is directed to another interface on the router */
