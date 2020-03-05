@@ -238,7 +238,7 @@ int chirouter_process_ipv4_frame(chirouter_ctx_t *ctx, ethernet_frame_t *frame)
     {
          /* Check routing table here */
          /* Temporary only forward to interface 1: */
-         /*
+
          chirouter_interface_t* interface = ctx->interfaces;
 
          struct in_addr ip_addr;
@@ -262,7 +262,7 @@ int chirouter_process_ipv4_frame(chirouter_ctx_t *ctx, ethernet_frame_t *frame)
               memcpy(hdr->dst, arpcache_entry->mac, ETHER_ADDR_LEN);
               chirouter_send_frame(ctx, interface, frame->raw, frame->length);
          }
-         */
+
 
     }
 
@@ -331,11 +331,11 @@ int chirouter_process_ethernet_frame(chirouter_ctx_t *ctx, ethernet_frame_t *fra
                     }
                     else if (ntohs(arp->op) == ARP_OP_REPLY)
                     {
-                        /*
+
                         struct in_addr ip_addr;
                         ip_addr.s_addr = arp->spa;
                         chirouter_arp_cache_add(ctx, &ip_addr, arp->sha);
-                        */
+                        
                     }
                 }
             }
