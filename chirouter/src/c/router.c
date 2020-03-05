@@ -261,6 +261,7 @@ int chirouter_process_ipv4_frame(chirouter_ctx_t *ctx, ethernet_frame_t *frame)
          else  // Cache HIT
          {
               memcpy(hdr->dst, arpcache_entry->mac, ETHER_ADDR_LEN);
+              memcpy(hdr->src, interface->mac, ETHER_ADDR_LEN);
               chirouter_send_frame(ctx, interface, frame->raw, frame->length);
          }
 
@@ -336,7 +337,7 @@ int chirouter_process_ethernet_frame(chirouter_ctx_t *ctx, ethernet_frame_t *fra
                         struct in_addr ip_addr;
                         ip_addr.s_addr = arp->spa;
                         chirouter_arp_cache_add(ctx, &ip_addr, arp->sha);
-                        
+
                     }
                 }
             }
