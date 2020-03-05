@@ -107,6 +107,7 @@ int send_icmp_dst_unreachable(chirouter_ctx_t *ctx, ethernet_frame_t *frame, uin
     reply_icmp->type = ICMPTYPE_DEST_UNREACHABLE;
     reply_icmp->code = code;
     memcpy(reply_icmp->time_exceeded.payload, ip_hdr, ICMP_BASIC_PAYLOAD_SIZE);
+    reply_icmp->chksum = cksum(reply_icmp, ICMP_BASIC_SIZE);
     iphdr_t* reply_ip_hdr = (iphdr_t*) (reply + sizeof(ethhdr_t));
     reply_ip_hdr->version = IP_VERSION;
     reply_ip_hdr->ihl = IP_IHL;
