@@ -112,7 +112,7 @@ int send_icmp_basic(chirouter_ctx_t *ctx, ethernet_frame_t *frame, uint8_t type,
      * is the only variable being modified and it is in the same location
      * regardless */
     memcpy(reply_icmp->time_exceeded.payload, ip_hdr, ICMP_BASIC_PAYLOAD_SIZE);
-    reply_icmp->chksum = cksum(reply_icmp, ICMP_BASIC_SIZE);
+    reply_icmp->chksum = cksum(reply_icmp, ntohs(ip_hdr->len) - sizeof(iphdr_t));  // ICMP_ECHO_SIZE
     iphdr_t* reply_ip_hdr = (iphdr_t*) (reply + sizeof(ethhdr_t));
     reply_ip_hdr->version = IP_VERSION;
     reply_ip_hdr->ihl = IP_IHL;
@@ -261,7 +261,7 @@ int chirouter_process_ipv4_frame(chirouter_ctx_t *ctx, ethernet_frame_t *frame)
              /* add frame to pending arp request */
              chirouter_pending_arp_req_t *pending_req;
              pthread_mutex_lock(&ctx->lock_arp);
-             pending_req = chirouter_arp_pending_req_lookup(chirouter_ctx_t *ctx, struct in_addr *ip);
+             pending_req = chirouter_arp_pending_req_lookup(ctx, &ip_addr);
              if (pending_req == NULL)
              {
                 pending_req = chirouter_arp_pending_req_add(ctx, &ip_addr, interface);
@@ -271,7 +271,7 @@ int chirouter_process_ipv4_frame(chirouter_ctx_t *ctx, ethernet_frame_t *frame)
              pthread_mutex_unlock(&ctx->lock_arp);
              chirouter_send_frame(ctx, interface, raw, sizeof(ethhdr_t) + sizeof(arp_packet_t));
              free(raw);
-             free(pending_frame);
+//             free(pending_frame);
          }
          else  // Cache HIT
          {
