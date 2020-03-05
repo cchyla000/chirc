@@ -223,6 +223,7 @@ int chirouter_process_ipv4_frame(chirouter_ctx_t *ctx, ethernet_frame_t *frame)
     else
     {
          /* Check routing table here */
+
          /* Temporary only forward to interface 1: */
 
          chirouter_interface_t* interface = ctx->interfaces;
