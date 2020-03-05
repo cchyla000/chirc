@@ -219,14 +219,31 @@ int chirouter_process_ipv4_frame(chirouter_ctx_t *ctx, ethernet_frame_t *frame)
     {
         return send_icmp_basic(ctx, frame, ICMPTYPE_TIME_EXCEEDED, ICMPCODE_TIME_EXCEEDED);
     }
-    /* check routing table */
     else
     {
          /* Check routing table here */
+         int i;
+         uint32_t longest_mask = 0;
+         chirouter_rtable_entry_t *rtable_entry;
+         chirouter_rtable_entry_t *return_entry = NULL;
+         for (i=0; i < ctx->num_rtable_entries; i++)
+         {
+              rtable_entry = &ctx->routing_table[i];
+              if ((rtable_entry->dest.s_addr == (rtable_entry->mask.s_addr & ip_hdr->dst))
+                   && (rtable_entry->mask.s_addr >= longest_mask))
+              {
+                  longest_mask = rtable_entry->mask.s_addr;
+                  return_entry = rtable_entry;
+              }
+         }
 
-         /* Temporary only forward to interface 1: */
+         if (return_entry == NULL)
+         {
+              chilog(DEBUG, "No matching entries in routing table");
+              return send_icmp_basic(ctx, frame, ICMPTYPE_DEST_UNREACHABLE, ICMPCODE_DEST_NET_UNREACHABLE);
+         }
 
-         chirouter_interface_t* interface = ctx->interfaces;
+         chirouter_interface_t* interface = return_entry->interface;
 
          struct in_addr ip_addr;
          ip_addr.s_addr = ip_hdr->dst;
@@ -308,21 +325,6 @@ int chirouter_process_ethernet_frame(chirouter_ctx_t *ctx, ethernet_frame_t *fra
                 {
                     if (ntohs(arp->op) == ARP_OP_REQUEST)
                     {
-                        /*
-                        struct in_addr ip_addr;
-                        ip_addr.s_addr = arp->spa;
-
-                        chirouter_arpcache_entry_t* arpcache_entry;
-                        pthread_mutex_lock(&(ctx->lock_arp));
-                        arpcache_entry = chirouter_arp_cache_lookup(ctx, &ip_addr);
-                        pthread_mutex_unlock(&(ctx->lock_arp));
-
-                        if (arpcache_entry == NULL)  // Cache MISS
-                        {
-                            chirouter_arp_cache_add(ctx, &ip_addr, arp->sha);
-                        }
-                        */
-
                         uint32_t tmp_pro_addr;
                         memcpy(arp->tha, arp->sha, ETHER_ADDR_LEN);
                         memcpy(arp->sha, frame->in_interface->mac, ETHER_ADDR_LEN);
@@ -336,11 +338,9 @@ int chirouter_process_ethernet_frame(chirouter_ctx_t *ctx, ethernet_frame_t *fra
                     }
                     else if (ntohs(arp->op) == ARP_OP_REPLY)
                     {
-
                         struct in_addr ip_addr;
                         ip_addr.s_addr = arp->spa;
                         chirouter_arp_cache_add(ctx, &ip_addr, arp->sha);
-
                     }
                 }
             }
