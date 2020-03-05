@@ -141,36 +141,7 @@ int chirouter_process_ipv4_frame(chirouter_ctx_t *ctx, ethernet_frame_t *frame)
     if (((uint32_t) frame->in_interface->ip.s_addr) == ip_hdr->dst)
     {
         /* check if time to live is 1 */
-        if (ip_hdr->ttl == 1)
-        {
-            reply_len = sizeof(ethhdr_t) + sizeof(iphdr_t) + ICMP_BASIC_SIZE;
-            reply = calloc(1, reply_len);
-            reply_icmp = (icmp_packet_t*) (reply + sizeof(ethhdr_t) + sizeof(iphdr_t));
-            reply_icmp->type = ICMPTYPE_TIME_EXCEEDED;
-            memcpy(reply_icmp->time_exceeded.payload, ip_hdr, ICMP_BASIC_PAYLOAD_SIZE);
-            reply_ip_hdr = (iphdr_t*) (reply + sizeof(ethhdr_t));
-            reply_ip_hdr->version = IP_VERSION;
-            reply_ip_hdr->ihl = IP_IHL;
-            reply_icmp->chksum = cksum(reply_icmp, ICMP_BASIC_SIZE);
-            reply_ip_hdr = (iphdr_t*) (reply + sizeof(ethhdr_t));
-            /* There very easily could be something wrong in this header */
-            reply_ip_hdr->version = IP_VERSION;
-            reply_ip_hdr->ihl = IP_IHL;
-            reply_ip_hdr->len = htons(sizeof(iphdr_t) + ICMP_BASIC_SIZE);
-            reply_ip_hdr->ttl = TTL;
-            reply_ip_hdr->proto = IPPROTO_ICMP;
-            reply_ip_hdr->src = ip_hdr->dst;
-            reply_ip_hdr->dst = ip_hdr->src;
-            reply_ip_hdr->cksum = cksum(reply_ip_hdr, sizeof(iphdr_t));
-            reply_hdr = (ethhdr_t*) reply;
-            reply_hdr->type = htons(ETHERTYPE_IP);
-            memcpy(reply_hdr->src, hdr->dst, ETHER_ADDR_LEN);
-            memcpy(reply_hdr->dst, hdr->src, ETHER_ADDR_LEN);
-            chirouter_send_frame(ctx, frame->in_interface, reply, reply_len);
-            free(reply);
-            return 0;
-        }
-        else if ((ip_hdr->proto) == IPPROTO_ICMP)
+        if ((ip_hdr->proto) == IPPROTO_ICMP)
         {
             icmp_packet_t* icmp = (icmp_packet_t*) (frame->raw + sizeof(ethhdr_t) + sizeof(iphdr_t));
             if (icmp->type == ICMPTYPE_ECHO_REQUEST)
@@ -233,6 +204,36 @@ int chirouter_process_ipv4_frame(chirouter_ctx_t *ctx, ethernet_frame_t *frame)
     if (found_on_router)
     {
         return send_icmp_dst_unreachable(ctx, frame, ICMPCODE_DEST_NET_UNREACHABLE);
+    }
+    /* check if ttl is 1 */
+    if (ip_hdr->ttl == 1)
+    {
+        reply_len = sizeof(ethhdr_t) + sizeof(iphdr_t) + ICMP_BASIC_SIZE;
+        reply = calloc(1, reply_len);
+        reply_icmp = (icmp_packet_t*) (reply + sizeof(ethhdr_t) + sizeof(iphdr_t));
+        reply_icmp->type = ICMPTYPE_TIME_EXCEEDED;
+        memcpy(reply_icmp->time_exceeded.payload, ip_hdr, ICMP_BASIC_PAYLOAD_SIZE);
+        reply_ip_hdr = (iphdr_t*) (reply + sizeof(ethhdr_t));
+        reply_ip_hdr->version = IP_VERSION;
+        reply_ip_hdr->ihl = IP_IHL;
+        reply_icmp->chksum = cksum(reply_icmp, ICMP_BASIC_SIZE);
+        reply_ip_hdr = (iphdr_t*) (reply + sizeof(ethhdr_t));
+        /* There very easily could be something wrong in this header */
+        reply_ip_hdr->version = IP_VERSION;
+        reply_ip_hdr->ihl = IP_IHL;
+        reply_ip_hdr->len = htons(sizeof(iphdr_t) + ICMP_BASIC_SIZE);
+        reply_ip_hdr->ttl = TTL;
+        reply_ip_hdr->proto = IPPROTO_ICMP;
+        reply_ip_hdr->src = ip_hdr->dst;
+        reply_ip_hdr->dst = ip_hdr->src;
+        reply_ip_hdr->cksum = cksum(reply_ip_hdr, sizeof(iphdr_t));
+        reply_hdr = (ethhdr_t*) reply;
+        reply_hdr->type = htons(ETHERTYPE_IP);
+        memcpy(reply_hdr->src, hdr->dst, ETHER_ADDR_LEN);
+        memcpy(reply_hdr->dst, hdr->src, ETHER_ADDR_LEN);
+        chirouter_send_frame(ctx, frame->in_interface, reply, reply_len);
+        free(reply);
+        return 0;
     }
     /* check routing table */
     else
