@@ -212,7 +212,7 @@ int chirouter_process_ipv4_frame(chirouter_ctx_t *ctx, ethernet_frame_t *frame)
     }
     if (found_on_router)
     {
-        return send_icmp_basic(ctx, frame, ICMPTYPE_DEST_UNREACHABLE, ICMPCODE_DEST_NET_UNREACHABLE);
+        return send_icmp_basic(ctx, frame, ICMPTYPE_DEST_UNREACHABLE, ICMPCODE_DEST_HOST_UNREACHABLE);
     }
     /* check if ttl is 1 */
     if (ip_hdr->ttl == 1)
@@ -240,10 +240,21 @@ int chirouter_process_ipv4_frame(chirouter_ctx_t *ctx, ethernet_frame_t *frame)
          {
              chilog(DEBUG, "Cache MISS");
              uint8_t *raw = chirouter_create_arp_request(interface->mac,
-                                interface->ip.s_addr, ip_hdr->dst);
+                                interface->ip.s_addr, ip_addr.s_addr);
+             /* add frame to pending arp request */
+             chirouter_pending_arp_req_t *pending_req;
+             pthread_mutex_lock(&ctx->lock_arp);
+             pending_req = chirouter_arp_pending_req_lookup(chirouter_ctx_t *ctx, struct in_addr *ip);
+             if (pending_req == NULL)
+             {
+                pending_req = chirouter_arp_pending_req_add(ctx, &ip_addr, interface);
+             }
+             /* add error checking here */
+             chirouter_arp_pending_req_add_frame(ctx, pending_req, frame);
+             pthread_mutex_unlock(&ctx->lock_arp);
              chirouter_send_frame(ctx, interface, raw, sizeof(ethhdr_t) + sizeof(arp_packet_t));
              free(raw);
-
+             free(pending_frame);
          }
          else  // Cache HIT
          {
