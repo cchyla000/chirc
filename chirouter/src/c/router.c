@@ -71,7 +71,7 @@ uint8_t* chirouter_create_arp_request(uint8_t *src_mac, uint32_t spa, uint32_t t
     arp_packet_t *arp = (arp_packet_t*) (raw + sizeof(ethhdr_t));
     memset(hdr->dst, 0xff, ETHER_ADDR_LEN);
     memcpy(hdr->src, src_mac, ETHER_ADDR_LEN);
-    hdr->type = ETHERTYPE_ARP;
+    hdr->type = htons(ETHERTYPE_ARP);
 
     arp->hrd = htons(ARP_HRD_ETHERNET);
     arp->pro = htons(ETHERTYPE_IP);
@@ -118,11 +118,13 @@ int chirouter_process_ipv4_frame(chirouter_ctx_t *ctx, ethernet_frame_t *frame)
                 reply = calloc(1, reply_len);
                 icmp_packet_t* reply_icmp = (icmp_packet_t*) (reply + sizeof(ethhdr_t) + sizeof(iphdr_t));
                 reply_icmp->type = ICMPTYPE_ECHO_REPLY;
-                memcpy(reply_icmp->echo.payload, icmp->echo.payload, MAX_ECHO_PAYLOAD);
+                memcpy(reply_icmp->echo.payload, icmp->echo.payload, sizeof(icmp->echo.payload));
                 reply_icmp->echo.identifier = icmp->echo.identifier;
                 reply_icmp->echo.seq_num = icmp->echo.seq_num;
-                reply_icmp->chksum = cksum(reply_icmp, ICMP_HDR_SIZE + MAX_ECHO_PAYLOAD);
+                reply_icmp->chksum = cksum(reply_icmp, ntohs(ip_hdr->len) - sizeof(iphdr_t));  // ICMP_HDR_SIZE + 56u
                 iphdr_t* reply_ip_hdr = (iphdr_t*) (reply + sizeof(ethhdr_t));
+                reply_ip_hdr->version = 4;
+                reply_ip_hdr->ihl = ((sizeof (iphdr_t)) / 4);
                 reply_ip_hdr->tos = ip_hdr->tos;
                 reply_ip_hdr->len = ip_hdr->len;
                 reply_ip_hdr->id = ip_hdr->id;
@@ -131,12 +133,13 @@ int chirouter_process_ipv4_frame(chirouter_ctx_t *ctx, ethernet_frame_t *frame)
                 reply_ip_hdr->proto = ip_hdr->proto;
                 reply_ip_hdr->src = ip_hdr->dst;
                 reply_ip_hdr->dst = ip_hdr->src;
-                reply_ip_hdr->cksum = cksum(reply_ip_hdr, sizeof(iphdr_t) + ICMP_HDR_SIZE + MAX_ECHO_PAYLOAD);
+                reply_ip_hdr->cksum = cksum(reply_ip_hdr, sizeof(iphdr_t)); //  + ICMP_HDR_SIZE + MAX_ECHO_PAYLOAD
                 ethhdr_t* reply_hdr = (ethhdr_t*) reply;
                 reply_hdr->type = htons(ETHERTYPE_IP);
                 memcpy(reply_hdr->src, hdr->dst, ETHER_ADDR_LEN);
                 memcpy(reply_hdr->dst, hdr->src, ETHER_ADDR_LEN);
                 chirouter_send_frame(ctx, frame->in_interface, reply, reply_len);
+                free(reply);
             }
             else
             {
@@ -150,6 +153,7 @@ int chirouter_process_ipv4_frame(chirouter_ctx_t *ctx, ethernet_frame_t *frame)
     {
          /* Check routing table here */
          /* Temporary only forward to interface 1: */
+         /*
          chirouter_interface_t* interface = ctx->interfaces;
 
          struct in_addr ip_addr;
@@ -173,8 +177,10 @@ int chirouter_process_ipv4_frame(chirouter_ctx_t *ctx, ethernet_frame_t *frame)
               memcpy(hdr->dst, arpcache_entry->mac, ETHER_ADDR_LEN);
               chirouter_send_frame(ctx, interface, frame->raw, frame->length);
          }
+         */
 
     }
+
     return 0;
 }
 
@@ -240,9 +246,11 @@ int chirouter_process_ethernet_frame(chirouter_ctx_t *ctx, ethernet_frame_t *fra
                     }
                     else if (ntohs(arp->op) == ARP_OP_REPLY)
                     {
+                        /*
                         struct in_addr ip_addr;
                         ip_addr.s_addr = arp->spa;
                         chirouter_arp_cache_add(ctx, &ip_addr, arp->sha);
+                        */
                     }
                 }
             }
