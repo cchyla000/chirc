@@ -100,7 +100,7 @@ uint8_t* chirouter_create_arp_request(uint8_t *src_mac, uint32_t spa, uint32_t t
 /* used for dst unreachable and time exceeded */
 int send_icmp_basic(chirouter_ctx_t *ctx, ethernet_frame_t *frame, uint8_t type, uint8_t code)
 {
-    chilog(DEBUG, "UNREACHABLE RESPONSE WITH CODE: %i", code);
+//    chilog(DEBUG, "UNREACHABLE RESPONSE WITH CODE: %i", code);
     iphdr_t* ip_hdr = (iphdr_t*) (frame->raw + sizeof(ethhdr_t));
     ethhdr_t *hdr = (ethhdr_t*) frame->raw;
     size_t reply_len = sizeof(ethhdr_t) + sizeof(iphdr_t) + ICMP_BASIC_SIZE;
@@ -162,7 +162,7 @@ int chirouter_process_ipv4_frame(chirouter_ctx_t *ctx, ethernet_frame_t *frame)
                 memcpy(reply_icmp->echo.payload, icmp->echo.payload, sizeof(icmp->echo.payload));
                 reply_icmp->echo.identifier = icmp->echo.identifier;
                 reply_icmp->echo.seq_num = icmp->echo.seq_num;
-                reply_icmp->chksum = cksum(reply_icmp, ICMP_ECHO_SIZE);
+                reply_icmp->chksum = cksum(reply_icmp, ntohs(ip_hdr->len) - sizeof(iphdr_t));
                 reply_ip_hdr = (iphdr_t*) (reply + sizeof(ethhdr_t));
                 reply_ip_hdr->version = IP_VERSION;
                 reply_ip_hdr->ihl = IP_IHL;
@@ -250,14 +250,15 @@ int chirouter_process_ipv4_frame(chirouter_ctx_t *ctx, ethernet_frame_t *frame)
 
          if (return_entry->gw.s_addr != 0)
          {
+             chilog(DEBUG, "Gateway router");
              ip_addr.s_addr = return_entry->gw.s_addr;
-
          }
          else
          {
              ip_addr.s_addr = ip_hdr->dst;
          }
 
+         memset(&ip_hdr->cksum, 0, sizeof(uint16_t));
          ip_hdr->ttl -= 1;
          ip_hdr->cksum = cksum(ip_hdr, sizeof(iphdr_t));
 
