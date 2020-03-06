@@ -84,36 +84,21 @@
 #define IP_IHL ((sizeof(iphdr_t)) / 4)
 #define TTL 255
 
-int send_host_unreachable(chirouter_ctx_t *ctx, withheld_frame_t *withheld_frame)
-{
-    ethernet_frame_t *frame = withheld_frame->frame;
-    iphdr_t* ip_hdr = (iphdr_t*) (frame->raw + sizeof(ethhdr_t));
-    ethhdr_t *hdr = (ethhdr_t*) frame->raw;
-    size_t reply_len = sizeof(ethhdr_t) + sizeof(iphdr_t) + ICMP_BASIC_SIZE;
-    uint8_t *reply = calloc(1, reply_len);
-    icmp_packet_t* reply_icmp = (icmp_packet_t*) (reply + sizeof(ethhdr_t) + sizeof(iphdr_t));
-    reply_icmp->type = ICMPTYPE_DEST_UNREACHABLE;
-    reply_icmp->code = ICMPCODE_DEST_HOST_UNREACHABLE;
-    memcpy(reply_icmp->dest_unreachable.payload, ip_hdr, ICMP_BASIC_PAYLOAD_SIZE);
-    reply_icmp->chksum = cksum(reply_icmp, ICMP_BASIC_SIZE);  // ICMP_ECHO_SIZE
-    iphdr_t* reply_ip_hdr = (iphdr_t*) (reply + sizeof(ethhdr_t));
-    reply_ip_hdr->version = IP_VERSION;
-    reply_ip_hdr->ihl = IP_IHL;
-    reply_ip_hdr->len = htons(sizeof(iphdr_t) + ICMP_BASIC_SIZE);
-    reply_ip_hdr->ttl = TTL;
-    reply_ip_hdr->proto = IPPROTO_ICMP;
-    reply_ip_hdr->src = frame->in_interface->ip.s_addr;
-    reply_ip_hdr->dst = ip_hdr->src;
-    reply_ip_hdr->cksum = cksum(reply_ip_hdr, sizeof(iphdr_t));
-    ethhdr_t* reply_hdr = (ethhdr_t*) reply;
-    reply_hdr->type = htons(ETHERTYPE_IP);
-    memcpy(reply_hdr->src, frame->in_interface->mac, ETHER_ADDR_LEN);
-    memcpy(reply_hdr->dst, hdr->src, ETHER_ADDR_LEN);
-    /* DON'T FORGET ERROR CHECKING */
-    chirouter_send_frame(ctx, frame->in_interface, reply, reply_len);
-    free(reply);
-    return 0;
-}
+
+/* NAME: send_host_unreachable
+ *
+ * DESCRIPTION: Sends an ICMP Destination Host Unreachable
+ *
+ * PARAMETERS:
+ *  ctx            - the chirouter context
+ *  withheld_frame - the withheld frame this is responding to
+ *
+ * RETURN: Nothing
+ */
+static void send_host_unreachable(chirouter_ctx_t *ctx,
+                                              withheld_frame_t *withheld_frame);
+
+
 /*
  * chirouter_arp_process_pending_req - Process a single pending ARP request
  *
@@ -171,7 +156,38 @@ int chirouter_arp_process_pending_req(chirouter_ctx_t *ctx, chirouter_pending_ar
     }
 }
 
-
+static void send_host_unreachable(chirouter_ctx_t *ctx,
+                                               withheld_frame_t *withheld_frame)
+{
+    ethernet_frame_t *frame = withheld_frame->frame;
+    iphdr_t* ip_hdr = (iphdr_t*) (frame->raw + sizeof(ethhdr_t));
+    ethhdr_t *hdr = (ethhdr_t*) frame->raw;
+    size_t reply_len = sizeof(ethhdr_t) + sizeof(iphdr_t) + ICMP_BASIC_SIZE;
+    uint8_t *reply = calloc(1, reply_len);
+    icmp_packet_t* reply_icmp = (icmp_packet_t*) (reply + sizeof(ethhdr_t)
+                                                             + sizeof(iphdr_t));
+    reply_icmp->type = ICMPTYPE_DEST_UNREACHABLE;
+    reply_icmp->code = ICMPCODE_DEST_HOST_UNREACHABLE;
+    memcpy(reply_icmp->dest_unreachable.payload, ip_hdr, ICMP_BASIC_PAYLOAD_SIZE);
+    reply_icmp->chksum = cksum(reply_icmp, ICMP_BASIC_SIZE);
+    iphdr_t* reply_ip_hdr = (iphdr_t*) (reply + sizeof(ethhdr_t));
+    reply_ip_hdr->version = IP_VERSION;
+    reply_ip_hdr->ihl = IP_IHL;
+    reply_ip_hdr->len = htons(sizeof(iphdr_t) + ICMP_BASIC_SIZE);
+    reply_ip_hdr->ttl = TTL;
+    reply_ip_hdr->proto = IPPROTO_ICMP;
+    reply_ip_hdr->src = frame->in_interface->ip.s_addr;
+    reply_ip_hdr->dst = ip_hdr->src;
+    reply_ip_hdr->cksum = cksum(reply_ip_hdr, sizeof(iphdr_t));
+    ethhdr_t* reply_hdr = (ethhdr_t*) reply;
+    reply_hdr->type = htons(ETHERTYPE_IP);
+    memcpy(reply_hdr->src, frame->in_interface->mac, ETHER_ADDR_LEN);
+    memcpy(reply_hdr->dst, hdr->src, ETHER_ADDR_LEN);
+    chirouter_send_frame(ctx, frame->in_interface, reply, reply_len);
+    free(reply);
+    /* no error checking because chirouter_arp_process_pending_req does not
+     * allow for it */
+}
 
 /***** DO NOT MODIFY THE CODE BELOW *****/
 
