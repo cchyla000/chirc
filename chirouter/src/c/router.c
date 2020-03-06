@@ -247,17 +247,16 @@ int chirouter_process_ipv4_frame(chirouter_ctx_t *ctx, ethernet_frame_t *frame)
 
          struct in_addr ip_addr;
          ip_addr.s_addr = ip_hdr->dst;
+         chilog(DEBUG, "IP addr is: %u", ip_hdr->dst);
 
          chirouter_arpcache_entry_t* arpcache_entry;
          pthread_mutex_lock(&(ctx->lock_arp));
          arpcache_entry = chirouter_arp_cache_lookup(ctx, &ip_addr);
-         pthread_mutex_unlock(&(ctx->lock_arp));
 
          if (arpcache_entry == NULL)  // Cache MISS
          {
              chilog(DEBUG, "Cache MISS");
 
-             pthread_mutex_lock(&ctx->lock_arp);
              chirouter_pending_arp_req_t *pending_req;
              pending_req = chirouter_arp_pending_req_lookup(ctx, &ip_addr);
              if (pending_req == NULL)
@@ -269,7 +268,6 @@ int chirouter_process_ipv4_frame(chirouter_ctx_t *ctx, ethernet_frame_t *frame)
                   free(raw);
              }
              chirouter_arp_pending_req_add_frame(ctx, pending_req, frame);
-             pthread_mutex_unlock(&ctx->lock_arp);
          }
          else  // Cache HIT
          {
@@ -278,6 +276,8 @@ int chirouter_process_ipv4_frame(chirouter_ctx_t *ctx, ethernet_frame_t *frame)
               memcpy(hdr->src, interface->mac, ETHER_ADDR_LEN);
               chirouter_send_frame(ctx, interface, frame->raw, frame->length);
          }
+         pthread_mutex_unlock(&(ctx->lock_arp));
+
 
     }
 
@@ -322,6 +322,7 @@ int chirouter_process_ipv4_frame(chirouter_ctx_t *ctx, ethernet_frame_t *frame)
 int chirouter_process_ethernet_frame(chirouter_ctx_t *ctx, ethernet_frame_t *frame)
 {
     ethhdr_t *hdr = (ethhdr_t*) frame->raw;
+    int i = 0;
     if (ntohs(hdr->type) == ETHERTYPE_ARP)
     {
         arp_packet_t *arp = (arp_packet_t*) (frame->raw + sizeof(ethhdr_t));
@@ -354,7 +355,8 @@ int chirouter_process_ethernet_frame(chirouter_ctx_t *ctx, ethernet_frame_t *fra
                         pending_req = chirouter_arp_pending_req_lookup(ctx, &ip_addr);
                         if (pending_req != NULL)
                         {
-                            chirouter_arp_cache_add(ctx, &ip_addr, arp->sha);
+                            chilog(DEBUG, "Adding IP %u to arp cache", ip_addr.s_addr);
+                            i = chirouter_arp_cache_add(ctx, &ip_addr, arp->sha);
                             withheld_frame_t *elem, *tmp;
                             DL_FOREACH_SAFE(pending_req->withheld_frames, elem, tmp)
                             {
@@ -365,6 +367,7 @@ int chirouter_process_ethernet_frame(chirouter_ctx_t *ctx, ethernet_frame_t *fra
                                 DL_DELETE(pending_req->withheld_frames, elem);
                                 // free(pending_req);
                             }
+                            DL_DELETE(ctx->pending_arp_reqs, pending_req);
 
                         }
                         pthread_mutex_unlock(&ctx->lock_arp);
