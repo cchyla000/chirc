@@ -77,6 +77,12 @@
 
 #define ARP_REQ_KEEP (0)
 #define ARP_REQ_REMOVE (1)
+#define ICMP_ORIGINAL_DATA_SIZE 8
+#define ICMP_BASIC_PAYLOAD_SIZE (sizeof(iphdr_t) + ICMP_ORIGINAL_DATA_SIZE)
+#define ICMP_BASIC_SIZE (ICMP_HDR_SIZE + ICMP_BASIC_PAYLOAD_SIZE)
+#define IP_VERSION 4
+#define IP_IHL ((sizeof(iphdr_t)) / 4)
+#define TTL 255
 
 int send_host_unreachable(chirouter_ctx_t *ctx, withheld_frame_t *withheld_frame)
 {
@@ -89,7 +95,7 @@ int send_host_unreachable(chirouter_ctx_t *ctx, withheld_frame_t *withheld_frame
     reply_icmp->type = ICMPTYPE_DEST_UNREACHABLE;
     reply_icmp->code = ICMPCODE_DEST_HOST_UNREACHABLE;
     memcpy(reply_icmp->dest_unreachable.payload, ip_hdr, ICMP_BASIC_PAYLOAD_SIZE);
-    reply_icmp->chksum = cksum(reply_icmp, ntohs(ip_hdr->len) - sizeof(iphdr_t));  // ICMP_ECHO_SIZE
+    reply_icmp->chksum = cksum(reply_icmp, ICMP_BASIC_SIZE);  // ICMP_ECHO_SIZE
     iphdr_t* reply_ip_hdr = (iphdr_t*) (reply + sizeof(ethhdr_t));
     reply_ip_hdr->version = IP_VERSION;
     reply_ip_hdr->ihl = IP_IHL;
@@ -129,6 +135,7 @@ int send_host_unreachable(chirouter_ctx_t *ctx, withheld_frame_t *withheld_frame
  */
 int chirouter_arp_process_pending_req(chirouter_ctx_t *ctx, chirouter_pending_arp_req_t *pending_req)
 {
+    chilog(DEBUG, "arp process pending request: %i", pending_req->times_sent);
     if (pending_req->times_sent < 5)
     {
         chirouter_interface_t *interface = pending_req->out_interface;
@@ -158,7 +165,7 @@ int chirouter_arp_process_pending_req(chirouter_ctx_t *ctx, chirouter_pending_ar
         while (withheld_frame)
         {
             send_host_unreachable(ctx, withheld_frame);
-            withheld_frame = withheld_frame.next; 
+            withheld_frame = withheld_frame->next;
         }
         return ARP_REQ_REMOVE;
     }
