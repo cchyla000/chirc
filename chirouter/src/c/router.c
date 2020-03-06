@@ -112,7 +112,7 @@ int send_icmp_basic(chirouter_ctx_t *ctx, ethernet_frame_t *frame, uint8_t type,
      * is the only variable being modified and it is in the same location
      * regardless */
     memcpy(reply_icmp->time_exceeded.payload, ip_hdr, ICMP_BASIC_PAYLOAD_SIZE);
-    reply_icmp->chksum = cksum(reply_icmp, ntohs(ip_hdr->len) - sizeof(iphdr_t));  // ICMP_ECHO_SIZE
+    reply_icmp->chksum = cksum(reply_icmp, ICMP_BASIC_SIZE);  // ICMP_ECHO_SIZE
     iphdr_t* reply_ip_hdr = (iphdr_t*) (reply + sizeof(ethhdr_t));
     reply_ip_hdr->version = IP_VERSION;
     reply_ip_hdr->ihl = IP_IHL;
