@@ -78,7 +78,36 @@
 #define ARP_REQ_KEEP (0)
 #define ARP_REQ_REMOVE (1)
 
-
+int send_host_unreachable(chirouter_ctx_t *ctx, withheld_frame_t *withheld_frame)
+{
+    ethernet_frame_t *frame = withheld_frame->frame;
+    iphdr_t* ip_hdr = (iphdr_t*) (frame->raw + sizeof(ethhdr_t));
+    ethhdr_t *hdr = (ethhdr_t*) frame->raw;
+    size_t reply_len = sizeof(ethhdr_t) + sizeof(iphdr_t) + ICMP_BASIC_SIZE;
+    uint8_t *reply = calloc(1, reply_len);
+    icmp_packet_t* reply_icmp = (icmp_packet_t*) (reply + sizeof(ethhdr_t) + sizeof(iphdr_t));
+    reply_icmp->type = ICMPTYPE_DEST_UNREACHABLE;
+    reply_icmp->code = ICMPCODE_DEST_HOST_UNREACHABLE;
+    memcpy(reply_icmp->dest_unreachable.payload, ip_hdr, ICMP_BASIC_PAYLOAD_SIZE);
+    reply_icmp->chksum = cksum(reply_icmp, ntohs(ip_hdr->len) - sizeof(iphdr_t));  // ICMP_ECHO_SIZE
+    iphdr_t* reply_ip_hdr = (iphdr_t*) (reply + sizeof(ethhdr_t));
+    reply_ip_hdr->version = IP_VERSION;
+    reply_ip_hdr->ihl = IP_IHL;
+    reply_ip_hdr->len = htons(sizeof(iphdr_t) + ICMP_BASIC_SIZE);
+    reply_ip_hdr->ttl = TTL;
+    reply_ip_hdr->proto = IPPROTO_ICMP;
+    reply_ip_hdr->src = frame->in_interface->ip.s_addr;
+    reply_ip_hdr->dst = ip_hdr->src;
+    reply_ip_hdr->cksum = cksum(reply_ip_hdr, sizeof(iphdr_t));
+    ethhdr_t* reply_hdr = (ethhdr_t*) reply;
+    reply_hdr->type = htons(ETHERTYPE_IP);
+    memcpy(reply_hdr->src, frame->in_interface->mac, ETHER_ADDR_LEN);
+    memcpy(reply_hdr->dst, hdr->src, ETHER_ADDR_LEN);
+    /* DON'T FORGET ERROR CHECKING */
+    chirouter_send_frame(ctx, frame->in_interface, reply, reply_len);
+    free(reply);
+    return 0;
+}
 /*
  * chirouter_arp_process_pending_req - Process a single pending ARP request
  *
@@ -100,15 +129,41 @@
  */
 int chirouter_arp_process_pending_req(chirouter_ctx_t *ctx, chirouter_pending_arp_req_t *pending_req)
 {
-    /* Your code goes here */
-
-    /* You will be able to write the rest of the code while having
-     * this function always return ARP_REQ_KEEP, but make sure you
-     * return the correct return value when you implement this function */
-
-    return ARP_REQ_KEEP;
+    if (pending_req->times_sent < 5)
+    {
+        chirouter_interface_t *interface = pending_req->out_interface;
+        uint8_t *raw = calloc(1, sizeof(ethhdr_t) + sizeof(arp_packet_t));
+        ethhdr_t *hdr = (ethhdr_t*) raw;
+        arp_packet_t *arp = (arp_packet_t*) (raw + sizeof(ethhdr_t));
+        memset(hdr->dst, 0xff, ETHER_ADDR_LEN);
+        memcpy(hdr->src, interface->mac, ETHER_ADDR_LEN);
+        hdr->type = htons(ETHERTYPE_ARP);
+        arp->hrd = htons(ARP_HRD_ETHERNET);
+        arp->pro = htons(ETHERTYPE_IP);
+        arp->hln = ETHER_ADDR_LEN;
+        arp->pln = IPV4_ADDR_LEN;
+        arp->op = htons(ARP_OP_REQUEST);
+        memcpy(arp->sha, interface->mac, ETHER_ADDR_LEN);
+        arp->spa = interface->ip.s_addr;
+        memset(arp->tha, 0xff, ETHER_ADDR_LEN);
+        arp->tpa = pending_req->ip.s_addr;
+        chirouter_send_frame(ctx, interface, raw, sizeof(ethhdr_t) + sizeof(arp_packet_t));
+        free(raw);
+        pending_req->times_sent += 1;
+        return ARP_REQ_KEEP;
+    }
+    else
+    {
+        withheld_frame_t *withheld_frame = pending_req->withheld_frames;
+        while (withheld_frame)
+        {
+            send_host_unreachable(ctx, withheld_frame);
+            withheld_frame = withheld_frame.next; 
+        }
+        return ARP_REQ_REMOVE;
+    }
 }
-      
+
 
 
 /***** DO NOT MODIFY THE CODE BELOW *****/
