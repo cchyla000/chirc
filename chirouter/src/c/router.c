@@ -226,6 +226,9 @@ int chirouter_process_ipv4_frame(chirouter_ctx_t *ctx, ethernet_frame_t *frame)
          uint32_t longest_mask = 0;
          chirouter_rtable_entry_t *rtable_entry;
          chirouter_rtable_entry_t *return_entry = NULL;
+         chirouter_arpcache_entry_t* arpcache_entry;
+         struct in_addr ip_addr;
+
          for (i=0; i < ctx->num_rtable_entries; i++)
          {
               rtable_entry = &ctx->routing_table[i];
@@ -245,11 +248,21 @@ int chirouter_process_ipv4_frame(chirouter_ctx_t *ctx, ethernet_frame_t *frame)
 
          chirouter_interface_t* interface = return_entry->interface;
 
-         struct in_addr ip_addr;
-         ip_addr.s_addr = ip_hdr->dst;
-         chilog(DEBUG, "IP addr is: %u", ip_hdr->dst);
+         if (return_entry->gw.s_addr != 0)
+         {
+             ip_addr.s_addr = return_entry->gw.s_addr;
 
-         chirouter_arpcache_entry_t* arpcache_entry;
+         }
+         else
+         {
+             ip_addr.s_addr = ip_hdr->dst;
+         }
+
+         ip_hdr->ttl -= 1;
+         ip_hdr->cksum = cksum(ip_hdr, sizeof(iphdr_t));
+
+         chilog(DEBUG, "IP addr is: %u", ip_addr.s_addr);
+
          pthread_mutex_lock(&(ctx->lock_arp));
          arpcache_entry = chirouter_arp_cache_lookup(ctx, &ip_addr);
 
