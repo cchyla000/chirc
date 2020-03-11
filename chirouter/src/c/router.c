@@ -212,8 +212,8 @@ int chirouter_process_ethernet_frame(chirouter_ctx_t *ctx, ethernet_frame_t *fra
                                 {
                                     return ret;
                                 }
+                                DL_DELETE(ctx->pending_arp_reqs, pending_req);
                             }
-                            chirouter_arp_free_pending_req(pending_req);
                             ret = 0;
                         }
                         pthread_mutex_unlock(&ctx->lock_arp);
