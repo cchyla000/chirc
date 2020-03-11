@@ -350,7 +350,6 @@ static int chirouter_process_ipv4_frame(chirouter_ctx_t *ctx, ethernet_frame_t *
 
     if (return_entry == NULL)
     {
-        chilog(DEBUG, "No matching entries in routing table");
         return send_icmp_basic(ctx, frame, ICMPTYPE_DEST_UNREACHABLE,
                                                  ICMPCODE_DEST_NET_UNREACHABLE);
     }
@@ -359,7 +358,6 @@ static int chirouter_process_ipv4_frame(chirouter_ctx_t *ctx, ethernet_frame_t *
 
     if (return_entry->gw.s_addr != 0)
     {
-       chilog(DEBUG, "Gateway router");
        ip_addr.s_addr = return_entry->gw.s_addr;
     }
     else
@@ -371,14 +369,11 @@ static int chirouter_process_ipv4_frame(chirouter_ctx_t *ctx, ethernet_frame_t *
     ip_hdr->ttl -= 1;
     ip_hdr->cksum = cksum(ip_hdr, sizeof(iphdr_t));
 
-    chilog(DEBUG, "IP addr is: %u", ip_addr.s_addr);
-
     pthread_mutex_lock(&(ctx->lock_arp));
     arpcache_entry = chirouter_arp_cache_lookup(ctx, &ip_addr);
 
     if (arpcache_entry == NULL)  // Cache MISS
     {
-       chilog(DEBUG, "Cache MISS");
 
        chirouter_pending_arp_req_t *pending_req;
        pending_req = chirouter_arp_pending_req_lookup(ctx, &ip_addr);
@@ -400,7 +395,6 @@ static int chirouter_process_ipv4_frame(chirouter_ctx_t *ctx, ethernet_frame_t *
     }
     else  // Cache HIT
     {
-        chilog(DEBUG, "Cache HIT");
         memcpy(hdr->dst, arpcache_entry->mac, ETHER_ADDR_LEN);
         memcpy(hdr->src, interface->mac, ETHER_ADDR_LEN);
         error = chirouter_send_frame(ctx, interface, frame->raw, frame->length);

@@ -120,7 +120,6 @@ static void send_host_unreachable(chirouter_ctx_t *ctx,
  */
 int chirouter_arp_process_pending_req(chirouter_ctx_t *ctx, chirouter_pending_arp_req_t *pending_req)
 {
-    chilog(DEBUG, "arp process pending request: %i", pending_req->times_sent);
     if (pending_req->times_sent < 5)
     {
         chirouter_interface_t *interface = pending_req->out_interface;
