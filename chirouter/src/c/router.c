@@ -75,7 +75,19 @@
 #define ICMPCODE_TIME_EXCEEDED 0
 #define CHIROUTER_OK 0
 
-static uint8_t* chirouter_create_arp_request(uint8_t *src_mac, uint32_t spa, uint32_t tpa);
+
+/* NAME: chirouter_process_ipv4_frame
+ *
+ * DESCRIPTION: Processes a given IPv4 frame. Assumes the frame is IPv4.
+ *
+ * PARAMETERS:
+ *  ctx   - the chirouter context
+ *  frame - the frame the ICMP message is responding to
+ *
+ * RETURN: If an error occurs while sending a frame, returns that error.
+ * Otherwise returns 0 (CHIROUTER_OK)
+ */
+static int chirouter_process_ipv4_frame(chirouter_ctx_t *ctx, ethernet_frame_t *frame);
 
 
 /* NAME: send_icmp_basic
@@ -95,18 +107,21 @@ static uint8_t* chirouter_create_arp_request(uint8_t *src_mac, uint32_t spa, uin
 static int send_icmp_basic(chirouter_ctx_t *ctx, ethernet_frame_t *frame,
                                                     uint8_t type, uint8_t code);
 
-/* NAME: chirouter_process_ipv4_frame
+/* NAME: chirouter_create_arp_request
  *
- * DESCRIPTION: Processes a given IPv4 frame. Assumes the frame is IPv4.
+ * DESCRIPTION: Given the source mac address, source protocol address, and
+ * target protocol address, allocates memory for and fills in the Ethernet and
+ * ARP headers for an ARP request message to be sent later by caller.
  *
  * PARAMETERS:
- *  ctx   - the chirouter context
- *  frame - the frame the ICMP message is responding to
+ *  src_mac  - the source mac address
+ *  spa      - the source protocol address
+ *  tpa      - the target protocol address
  *
- * RETURN: If an error occurs while sending a frame, returns that error.
- * Otherwise returns 0 (CHIROUTER_OK)
+ * RETURN: Returns a pointer to the newly allocated message.
+ *
  */
-static int chirouter_process_ipv4_frame(chirouter_ctx_t *ctx, ethernet_frame_t *frame);
+static uint8_t* chirouter_create_arp_request(uint8_t *src_mac, uint32_t spa, uint32_t tpa);
 
 
 /*
@@ -148,6 +163,7 @@ int chirouter_process_ethernet_frame(chirouter_ctx_t *ctx, ethernet_frame_t *fra
 {
     ethhdr_t *hdr = (ethhdr_t*) frame->raw;
     int i = 0;
+    int ret = 1;
     if (ntohs(hdr->type) == ETHERTYPE_ARP)
     {
         arp_packet_t *arp = (arp_packet_t*) (frame->raw + sizeof(ethhdr_t));
@@ -168,7 +184,7 @@ int chirouter_process_ethernet_frame(chirouter_ctx_t *ctx, ethernet_frame_t *fra
                         arp->op = htons(ARP_OP_REPLY);
                         memcpy(hdr->dst, hdr->src, ETHER_ADDR_LEN);
                         memcpy(hdr->src, frame->in_interface->mac, ETHER_ADDR_LEN);
-                        chirouter_send_frame(ctx, frame->in_interface,
+                        ret = chirouter_send_frame(ctx, frame->in_interface,
                                                      frame->raw, frame->length);
                     }
                     else if (ntohs(arp->op) == ARP_OP_REPLY)
@@ -181,7 +197,6 @@ int chirouter_process_ethernet_frame(chirouter_ctx_t *ctx, ethernet_frame_t *fra
                         pending_req = chirouter_arp_pending_req_lookup(ctx, &ip_addr);
                         if (pending_req != NULL)
                         {
-                            chilog(DEBUG, "Adding IP %u to arp cache", ip_addr.s_addr);
                             i = chirouter_arp_cache_add(ctx, &ip_addr, arp->sha);
                             withheld_frame_t *elem, *tmp;
                             DL_FOREACH_SAFE(pending_req->withheld_frames, elem,
@@ -191,19 +206,22 @@ int chirouter_process_ethernet_frame(chirouter_ctx_t *ctx, ethernet_frame_t *fra
                                 memcpy(hdr->dst, arp->sha, ETHER_ADDR_LEN);
                                 memcpy(hdr->src, pending_req->out_interface->mac,
                                                                 ETHER_ADDR_LEN);
-                                chirouter_send_frame(ctx, pending_req->out_interface,
-                                         elem->frame->raw, elem->frame->length);
-                                DL_DELETE(pending_req->withheld_frames, elem);
-                                // free(pending_req);
+                                ret = chirouter_send_frame(ctx, pending_req->out_interface,
+                                           elem->frame->raw, elem->frame->length);
+                                if (ret != 0)
+                                {
+                                    return ret;
+                                }
                             }
-                            DL_DELETE(ctx->pending_arp_reqs, pending_req);
-
+                            chirouter_arp_free_pending_req(pending_req);
+                            ret = 0;
                         }
                         pthread_mutex_unlock(&ctx->lock_arp);
                     }
                 }
             }
         }
+        return ret;
     }
     else if (ntohs(hdr->type) == ETHERTYPE_IP)
     {
